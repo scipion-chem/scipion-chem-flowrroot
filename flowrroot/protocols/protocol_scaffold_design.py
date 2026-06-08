@@ -46,12 +46,10 @@ from pwchem.utils.utilsFasta import parseFasta
 
 
 
-class ProtDenovoGeneration(EMProtocol):
+class ProtScaffoldDesign(EMProtocol):
     """
-    De novo generation creates new ligands from scratch,
-     using only the protein pocket structure as input. The model learns to generate molecules that are complementary to the binding site
     """
-    _label = 'De Novo ligand generation'
+    _label = 'Scaffold-based design'
     protSeq = ProtDefineSetOfSequences()
 
     # -------------------------- DEFINE param functions ----------------------
@@ -70,6 +68,11 @@ class ProtDenovoGeneration(EMProtocol):
 
 
         form.addSection(label='Input')
+        form.addParam('option', params.EnumParam,
+                      choices=['Scaffold hopping', 'Scaffold elaboration'],
+                      label="Design option: ",
+                      help='Scaffold hopping: preserves the functional groups from a reference ligand while generating a new molecular scaffold. This is useful for exploring novel chemotypes while maintaining key interactions. \n'
+                           'Scaffold elaboration: preserves the core molecular scaffold from a reference ligand while generating new R-groups, decorations, and functional groups. This is useful for lead optimization where you want to keep the scaffold but explore different substituents.')
         form.addParam('inputAtomStruct', params.PointerParam,
                       pointerClass='AtomStruct',
                       label="Input structure: ",
@@ -141,7 +144,7 @@ class ProtDenovoGeneration(EMProtocol):
 
     def runFlowrStep(self):
         scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
-        outPath = self._getExtraPath('denovo')
+        outPath = self._getExtraPath('scaffold')
         modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'checkpoints/flowr_root_v2.1.ckpt')
 
         ligIdx = self.getLigandIndex()
@@ -169,6 +172,12 @@ class ProtDenovoGeneration(EMProtocol):
             '--save_dir', os.path.abspath(outPath),
             '--filter_valid_unique'
         ]
+
+        if self.option.get() == 0:
+            args.append('--scaffold_hopping')
+        elif self.option.get() == 1:
+            args.append('--scaffold_elaboration')
+
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
 
@@ -238,7 +247,7 @@ class ProtDenovoGeneration(EMProtocol):
         )
 
     def createOutputStep(self):
-        outPath = self._getExtraPath('denovo')
+        outPath = self._getExtraPath('scaffold')
         sdfFiles = glob.glob(os.path.join(outPath, '*optimized-hs.sdf'))
 
         if not sdfFiles:

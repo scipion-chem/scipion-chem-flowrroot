@@ -4,4 +4,5 @@
 # Find documentation here: https://scipion-em.github.io/docs/docs/developer/creating-a-protocol
 # **************************************************************************
 from .protocol_denovo import ProtDenovoGeneration
+from .protocol_scaffold_design import ProtScaffoldDesign
 
