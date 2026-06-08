@@ -5,4 +5,5 @@
 # **************************************************************************
 from .protocol_denovo import ProtDenovoGeneration
 from .protocol_scaffold_design import ProtScaffoldDesign
+from .protocol_growth import ProtGrowth
 

@@ -26,7 +26,7 @@
 # **************************************************************************
 
 from pwchem.wizards import SelectElementWizard
-from .protocols import ProtDenovoGeneration, ProtScaffoldDesign
+from .protocols import ProtDenovoGeneration, ProtScaffoldDesign, ProtGrowth
 
 SelectElementWizard().addTarget(protocol=ProtDenovoGeneration,
                                targets=['referenceMol'],
@@ -34,6 +34,11 @@ SelectElementWizard().addTarget(protocol=ProtDenovoGeneration,
                                outputs=['referenceMol'])
 
 SelectElementWizard().addTarget(protocol=ProtScaffoldDesign,
+                               targets=['referenceMol'],
+                               inputs=['inputSetOfMols'],
+                               outputs=['referenceMol'])
+
+SelectElementWizard().addTarget(protocol=ProtGrowth,
                                targets=['referenceMol'],
                                inputs=['inputSetOfMols'],
                                outputs=['referenceMol'])
