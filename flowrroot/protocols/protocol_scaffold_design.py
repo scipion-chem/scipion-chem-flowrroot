@@ -50,7 +50,6 @@ class ProtScaffoldDesign(EMProtocol):
     """
     """
     _label = 'Scaffold-based design'
-    protSeq = ProtDefineSetOfSequences()
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -69,7 +68,7 @@ class ProtScaffoldDesign(EMProtocol):
 
         form.addSection(label='Input')
         form.addParam('option', params.EnumParam,
-                      choices=['Scaffold hopping', 'Scaffold elaboration'],
+                      choices=['Scaffold hopping', 'Scaffold elaboration'], default=1,
                       label="Design option: ",
                       help='Scaffold hopping: preserves the functional groups from a reference ligand while generating a new molecular scaffold. This is useful for exploring novel chemotypes while maintaining key interactions. \n'
                            'Scaffold elaboration: preserves the core molecular scaffold from a reference ligand while generating new R-groups, decorations, and functional groups. This is useful for lead optimization where you want to keep the scaffold but explore different substituents.')
@@ -109,6 +108,10 @@ class ProtScaffoldDesign(EMProtocol):
         group.addParam('batchCost', params.IntParam, default=20,
                        label='Batch cost: ', expertLevel=params.LEVEL_ADVANCED,
                        help="How much noise added to generation to increase diversity.")
+        group.addParam('filterCondSubstructure', params.BooleanParam,
+                       default=False,
+                       label="Strict substructure filtering: ",
+                       help="If enabled, generated molecules that do not contain the specified substructure will be discarded. This may fail if invalid molecules are produced during generation.")
 
         form.addParallelSection(threads=4, mpi=1)
 
@@ -172,6 +175,9 @@ class ProtScaffoldDesign(EMProtocol):
             '--save_dir', os.path.abspath(outPath),
             '--filter_valid_unique'
         ]
+
+        if self.filterCondSubstructure.get():
+            args.append('--filter_cond_substructure')
 
         if self.option.get() == 0:
             args.append('--scaffold_hopping')

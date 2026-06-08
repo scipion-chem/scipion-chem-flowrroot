@@ -52,7 +52,6 @@ class ProtDenovoGeneration(EMProtocol):
      using only the protein pocket structure as input. The model learns to generate molecules that are complementary to the binding site
     """
     _label = 'De Novo ligand generation'
-    protSeq = ProtDefineSetOfSequences()
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):

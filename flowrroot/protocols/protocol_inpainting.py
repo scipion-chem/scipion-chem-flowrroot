@@ -46,10 +46,10 @@ from pwchem.utils.utilsFasta import parseFasta
 
 
 
-class ProtGrowth(EMProtocol):
+class ProtInpainting(EMProtocol):
     """
     """
-    _label = 'Fragment and core growth'
+    _label = 'Molecular inpainting'
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -67,11 +67,6 @@ class ProtGrowth(EMProtocol):
 
 
         form.addSection(label='Input')
-        form.addParam('option', params.EnumParam,
-                      choices=['Core growing', 'Fragment growing'], defautl=1,
-                      label="Design option: ",
-                      help='Core growing: Core growing preserves a selected ring system (core) from the reference ligand and generates new substituents around it. \n'
-                           'Fragment growing: Fragment growing takes an input fragment and grows additional atoms around it. ')
         form.addParam('inputAtomStruct', params.PointerParam,
                       pointerClass='AtomStruct',
                       label="Input structure: ",
@@ -89,15 +84,9 @@ class ProtGrowth(EMProtocol):
                        help='Choose whether to predict affinity of the new molecules with input protein')
 
         group = form.addGroup('Parameters')
-        group.addParam('ringIndex', params.IntParam, default=0, condition='option==0',
-                       label='Ring system to preserve: ', help="Select which ring system to preserve (default: 0, i.e. the first/largest ring system).")
-        group.addParam('growSize', params.StringParam, default='', condition='option==1',
-                       label='Heavy atoms to add: ',
-                       help="Specify the number of heavy atoms to add (if not set, molecule sizes are sampled).")
-
-        group.addParam('anisotropic', params.BooleanParam, default=True,
-                       label="Shape-aware anisotropic Gaussian prior: ",
-                       help='Choose whether to use it for a shape-aware prior that better matches the growth direction.')
+        group.addParam('atoms', params.StringParam, default='', #todo create wizard
+                       label='Atoms to modify: ',
+                       help="Specify the atoms to modify.")
 
         group.addParam('pocketCutoff', params.FloatParam, default=6.0,
                        label='Pocket cutoff: ',
@@ -183,22 +172,14 @@ class ProtGrowth(EMProtocol):
             '--num_workers', (self.numberOfThreads.get()),
             '--ckpt_path', modelPath,
             '--save_dir', os.path.abspath(outPath),
-            '--filter_valid_unique'
-        ]
+            '--filter_valid_unique',
+            '--substructure_inpainting',
+            '--substructure'
+
+        ] + [idx for idx in re.split(r'[\s,]+', self.atoms.get().strip()) if idx]
 
         if self.filterCondSubstructure.get():
             args.append('--filter_cond_substructure')
-
-        if self.anisotropic.get():
-            args.append('--anisotropic_prior')
-
-        if self.option.get() == 0:
-            args.append('--core_growing')
-            args.append('--ring_system_indexing'), args.append(self.ringIndex.get())
-        elif self.option.get() == 1:
-            args.append('--fragment_growing')
-            if self.growSize.get()!= '':
-                args.append('--grow_size'), args.append(self.growSize.get())
 
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
