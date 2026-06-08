@@ -26,6 +26,7 @@
 # **************************************************************************
 
 from pwchem.wizards import SelectElementWizard
+from .protocols import ProtDenovoGeneration
 
 SelectElementWizard().addTarget(protocol=ProtDenovoGeneration,
                                targets=['referenceMol'],

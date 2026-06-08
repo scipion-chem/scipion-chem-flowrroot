@@ -27,18 +27,20 @@ import json
 import string
 import re
 
-import os
+import os, glob
 import pyworkflow.protocol.params as params
 from pwem.protocols import EMProtocol
 from pyworkflow.object import String
 import shutil
 
 from pwchem import Plugin
+from pwchem.constants import RDKIT_DIC
+from pwem.convert import cifToPdb
 from flowrroot.constants import FLOWR_DIC
 
 from pwem.objects import  AtomStruct, SetOfAtomStructs
 from pwem.objects import Sequence, SetOfSequences
-from pwchem import SetOfSmallMolecules, SmallMolecule
+from pwchem.objects import SmallMolecule, SetOfSmallMolecules
 from pwchem.protocols.Sequences.protocol_define_sequences import ProtDefineSetOfSequences
 from pwchem.utils.utilsFasta import parseFasta
 
@@ -74,11 +76,15 @@ class ProtDenovoGeneration(EMProtocol):
                       help='Select the AtomStruct object')
         form.addParam('inputSetOfMols', params.PointerParam,
                       pointerClass='SetOfSmallMolecules',
-                      label="Input reference ligand: ",
+                      label="Input reference ligands set: ",
                       help='Select the AtomStruct object')
-        iGroup.addParam('referenceMol', params.StringParam, #todo select the index of this ref to use in call to script
+        form.addParam('referenceMol', params.StringParam, #todo select the index of this ref to use in call to script
                         label='Reference ligand: ',
                         help='Reference ligand')
+
+        form.addParam('affinity', params.BooleanParam, default=False,
+                       label="Predict affinity: ",
+                       help='Choose whether to predict affinity of the new molecules with input protein')
 
         group = form.addGroup('Parameters')
         group.addParam('pocketCutoff', params.FloatParam, default=6.0,
@@ -97,101 +103,172 @@ class ProtDenovoGeneration(EMProtocol):
         group.addParam('sampleMolSizes', params.BooleanParam, default=True,
                         label="Sample molecule sizes: ", expertLevel=params.LEVEL_ADVANCED,
                         help="Enables stochastic sampling of molecular sizes, allowing the model to generate ligands with varying number of atoms based on learned size distribution.")
+        group.addParam('batchCost', params.IntParam, default=20,
+                       label='Batch cost: ', expertLevel=params.LEVEL_ADVANCED,
+                       help="How much noise added to generation to increase diversity.")
 
         form.addParallelSection(threads=4, mpi=1)
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
+        self._insertFunctionStep(self.convertFilesStep)
+        self._insertFunctionStep(self.createLigandFile)
         self._insertFunctionStep(self.runFlowrStep)
+        if self.affinity.get():
+            self._insertFunctionStep(self.predictAffinityStep)
+
         self._insertFunctionStep(self.createOutputStep)
 
-    def runFlowrStep(self):
-        scriptPath = self._getVar(FLOWR_DIC['home'])
+    def convertFilesStep(self):
+        struct = self.inputAtomStruct.get()
+        fileName = struct.getFileName()
+        base = os.path.splitext(os.path.basename(fileName))[0]
+        outFile = self._getExtraPath(base + '.pdb')
+        if fileName.lower().endswith('.cif'):
+            cifToPdb(fileName, outFile)
 
-        #Plugin.runCondaCommand(
-        #    self,
-        #    program="python",
-        #    args=f"{scriptPath} {jsonPath} {yamlPath}",
-        #    condaDic=BOLTZ_DIC
-        #)
+    def createLigandFile(self):
+        molFile = self._getExtraPath('ligands.txt')
+        outPath = self._getExtraPath('ligands.sdf')
+        with open(molFile, 'w') as f:
+            for mol in self.inputSetOfMols.get():
+                f.write(os.path.abspath(mol.getFileName()) + '\n')
+
+        args = ['-i', os.path.abspath(molFile), '-o', os.path.abspath(outPath), '-of', 'sdf']
+
+        Plugin.runScript(self, 'rdkit_IO.py', args, env=RDKIT_DIC, cwd=self._getExtraPath())
+
+
+    def runFlowrStep(self):
+        scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
+        outPath = self._getExtraPath('denovo')
+        modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'checkpoints/flowr_root_v2.1.ckpt')
+
+        ligIdx = self.getLigandIndex()
+
+        struct = self.inputAtomStruct.get()
+        fileName = struct.getFileName()
+        base = os.path.splitext(os.path.basename(fileName))[0]
+        outFile = self._getExtraPath(base + '.pdb')
+        if not os.path.exists(outFile):
+            outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
+
+        args = [
+            '--pdb_file', outFile,
+            '--ligand_file', (os.path.abspath(self._getExtraPath('ligands.sdf'))),
+            '--ligand_id', ligIdx,
+            '--arch', 'pocket', # NEEDS to be this value bc of the model
+            '--pocket_type', 'holo', # NEEDS to be this value bc of the model
+            '--pocket_cutoff', self.pocketCutoff.get(),
+            '--sample_n_molecules_per_target', self.nMolecules.get(),
+            '--max_sample_iter', self.sampleIters.get(),
+            '--coord_noise_scale', self.noiseScale.get(),
+            '--batch_cost', self.batchCost.get(),
+            '--num_workers', (self.numberOfThreads.get()),
+            '--ckpt_path', modelPath,
+            '--save_dir', os.path.abspath(outPath)
+        ]
+        if self.cutPocket.get(): args.append('--cut_pocket')
+        if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
+
+        if self.useGpu.get():
+            args.append('--gpus')
+            args.append('1')
+
+        fullProgram = (
+            f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root')}:$PYTHONPATH && "
+            f"python"
+        )
+
+        args_str = " ".join(map(str, args))
+
+        Plugin.runCondaCommand(
+            self,
+            program=fullProgram,
+            args=f"{scriptPath} {args_str}",
+            condaDic=FLOWR_DIC,
+            cwd=Plugin.getVar(self._getExtraPath())
+        )
+
+    def predictAffinityStep(self):
+        scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root/flowr/predict/predict_from_pdb.py')
+        modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'checkpoints/flowr_root_v2.1.ckpt')
+        outPath = self._getExtraPath('denovo_affinity')
+        struct = self.inputAtomStruct.get()
+        fileName = struct.getFileName()
+        base = os.path.splitext(os.path.basename(fileName))[0]
+        outFile = self._getExtraPath(base + '.pdb')
+        if not os.path.exists(outFile):
+            outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
+
+        args = [
+            '--pdb_file', outFile,
+            '--ligand_file', (glob.glob(os.path.join(self._getExtraPath('denovo'), '*optimized-hs.sdf'))[0]),
+            '--multiple_ligands',
+            '--add_hs_and_optimize_gen_ligs',
+            '--arch', 'pocket',  # NEEDS to be this value bc of the model
+            '--pocket_type', 'holo',  # NEEDS to be this value bc of the model
+            '--pocket_cutoff', self.pocketCutoff.get(),
+            '--coord_noise_scale', self.noiseScale.get(),
+            '--num_workers', (self.numberOfThreads.get()),
+            '--ckpt_path', modelPath,
+            '--save_dir', os.path.abspath(outPath)
+        ]
+        if self.cutPocket.get(): args.append('--cut_pocket')
+        if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
+
+        if self.useGpu.get():
+            args.append('--gpus')
+            args.append('1')
+
+        fullProgram = (
+            f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root')}:$PYTHONPATH && "
+            f"python"
+        )
+
+        args_str = " ".join(map(str, args))
+
+        Plugin.runCondaCommand(
+            self,
+            program=fullProgram,
+            args=f"{scriptPath} {args_str}",
+            condaDic=FLOWR_DIC,
+            cwd=Plugin.getVar(self._getExtraPath())
+        )
 
     def createOutputStep(self):
-        predictionsPath = os.path.join(
-            os.path.abspath(self._getPath()),
-            "boltz_results_input",
-            "predictions"
-        )
+        outPath = self._getExtraPath('denovo')
+        sdfFiles = glob.glob(os.path.join(outPath, '*optimized-hs.sdf'))
 
-        inputFolders = [
-            f for f in os.listdir(predictionsPath)
-            if os.path.isdir(os.path.join(predictionsPath, f))
-        ]
-        if not inputFolders:
-            raise Exception(f"No prediction folders found in {predictionsPath}")
+        if not sdfFiles:
+            self.warning("No SDF files found")
+            return
+        splitDir = self._getPath()
+        for sdf in sdfFiles:
+            args = [
+                '-i', os.path.abspath(sdf),
+                '-od', os.path.abspath(splitDir),
+                '-of', 'sdf',
+                '-ob', 'flowr_mol'
+            ]
 
-        inputFolder = os.path.join(predictionsPath, inputFolders[0])
+            Plugin.runScript(
+                self,
+                'rdkit_IO.py',
+                args,
+                env=RDKIT_DIC,
+                cwd=self._getExtraPath()
+            )
 
-        cifFiles = sorted([f for f in os.listdir(inputFolder) if f.lower().endswith('.cif')])
-        if not cifFiles:
-            raise Exception(f"No CIF files found in {inputFolder}")
+        sdfs = glob.glob(os.path.join(self._getPath(), '*.sdf'))
+        outMols = SetOfSmallMolecules().create(outputPath=self._getPath())
+        outMols.setProteinFile(self.inputAtomStruct.get().getFileName())
+        for sdf in sdfs:
+            molName = os.path.splitext(os.path.basename(sdf))[0]
+            mol = SmallMolecule(smallMolFilename=sdf, molName=molName)
+            outMols.append(mol)
 
-        # Create output directory
-        outPath = os.path.join(self._getExtraPath(), 'outputs')
-        os.makedirs(outPath, exist_ok=True)
-
-        # Create set of structures
-        outputSet = SetOfAtomStructs.create(self._getPath())
-
-        scores = {}
-
-        for cifName in cifFiles:
-            cifPath = os.path.join(inputFolder, cifName)
-
-            modelBase = os.path.splitext(cifName)[0]
-            jsonName = f"confidence_{modelBase}.json"
-            jsonFile = os.path.join(inputFolder, jsonName)
-            score = 0
-
-            if os.path.exists(jsonFile):
-                try:
-                    with open(jsonFile) as f:
-                        data = json.load(f)
-                    score = data.get("confidence_score", 0)
-                except:
-                    pass
-
-            scores[cifName] = score
-
-            # Copy to output folder
-            dst = os.path.join(outPath, cifName)
-            shutil.copy(cifPath, dst)
-
-            atomStruct = AtomStruct(filename=dst)
-            atomStruct.origin = String()
-            atomStruct.setAttributeValue('origin', 'Boltz')
-
-            outputSet.append(atomStruct)
-
-        # Select best model
-        bestModel = max(scores, key=scores.get)
-        bestStructPath = os.path.join(outPath, bestModel)
-
-        bestStruct = AtomStruct(filename=bestStructPath)
-        bestStruct.origin = String()
-        bestStruct.setAttributeValue('origin', 'Boltz')
-
-        # Optional: write summary file
-        resultsFile = os.path.join(self._getPath(), 'results.txt')
-        with open(resultsFile, 'w') as f:
-            f.write("Model\tConfidenceScore\n")
-            for name in sorted(scores.keys()):
-                f.write(f"{name}\t{scores[name]:.3f}\n")
-            f.write(f"BEST\t{bestModel}\t{scores[bestModel]:.3f}\n")
-
-        self._defineOutputs(
-            outputBestAtomStruct=bestStruct,
-            outputSetOfAtomStructs=outputSet
-        )
+        self._defineOutputs(outputSmallMolecules=outMols)
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
@@ -224,17 +301,7 @@ class ProtDenovoGeneration(EMProtocol):
         return warnings
 
     # --------------------------- UTILS functions -----------------------------------
-    def guessEntityType(self, sequence):
-        """ Guess if a sequence is DNA, RNA or Protein """
-        sequence = sequence.upper().strip()
-
-        protein_only = re.compile(r'[DEFHIKLMPQRVWY]')
-
-        if protein_only.search(sequence):
-            return 'protein'
-
-        if 'U' in sequence:
-            return 'rna'
-
-        return 'dna'
-
+    def getLigandIndex(self):
+        for i, mol in enumerate(self.inputSetOfMols.get()):
+            if str(mol) == self.referenceMol.get():
+                return i
