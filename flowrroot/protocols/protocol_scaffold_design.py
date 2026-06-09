@@ -308,20 +308,7 @@ class ProtScaffoldDesign(EMProtocol):
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
-        resultsFile = os.path.join(self._getPath(), 'results.txt')
-
-        if not os.path.exists(resultsFile):
-            return ["Results file does not exist."]
-
-        summary = ["Boltz predictions summary:"]
-
-        try:
-            with open(resultsFile) as f:
-                for line in f:
-                    summary.append(line.strip())
-        except Exception as e:
-            summary.append(f"Error reading results file: {e}")
-
+        summary = []
         return summary
 
     def _methods(self):
