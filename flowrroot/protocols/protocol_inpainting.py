@@ -96,7 +96,14 @@ class ProtInpainting(EMProtocol):
                       help='Choose whether the program sees whole protein or only the pocket.')
         group.addParam('nMolecules', params.IntParam, default=1,
                        label='Number of generated molecules: ', help="Number of generated molecules.")
-        group.addParam('sampleIters', params.IntParam, default=20,
+
+        group.addParam('seed', params.IntParam, default=42, label='Random seed:',expertLevel=params.LEVEL_ADVANCED,
+                        help='Seed for reproducible generation.')
+        group.addParam('maxPocketSize',params.IntParam,default=1000,label='Maximum pocket size:',expertLevel=params.LEVEL_ADVANCED,
+                       help='Maximum number of atoms allowed in the pocket.')
+        group.addParam('optimizeLigands', params.BooleanParam, default=True, expertLevel=params.LEVEL_ADVANCED,
+                        label='Optimize ligands:')
+        group.addParam('sampleIters', params.IntParam, default=20, expertLevel=params.LEVEL_ADVANCED,
                        label='Max. iterations: ', help="Maximum number of sample iterations.")
         group.addParam('noiseScale', params.FloatParam, default=0.0,
                        label='Noise: ', expertLevel=params.LEVEL_ADVANCED,
@@ -146,7 +153,7 @@ class ProtInpainting(EMProtocol):
 
     def runFlowrStep(self):
         scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
-        outPath = self._getExtraPath('scaffold')
+        outPath = self._getExtraPath('inpainting')
         modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'checkpoints/flowr_root_v2.1.ckpt')
 
         ligIdx = self.getLigandIndex()
@@ -173,6 +180,7 @@ class ProtInpainting(EMProtocol):
             '--ckpt_path', modelPath,
             '--save_dir', os.path.abspath(outPath),
             '--filter_valid_unique',
+            '--max_pocket_size', self.maxPocketSize.get(),
             '--substructure_inpainting',
             '--substructure'
 
@@ -180,6 +188,10 @@ class ProtInpainting(EMProtocol):
 
         if self.filterCondSubstructure.get():
             args.append('--filter_cond_substructure')
+
+        args.extend(['--seed', self.seed.get()])
+        if self.optimizeLigands.get():
+            args.append('--add_hs_and_optimize')
 
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
@@ -206,7 +218,7 @@ class ProtInpainting(EMProtocol):
     def predictAffinityStep(self):
         scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root/flowr/predict/predict_from_pdb.py')
         modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'checkpoints/flowr_root_v2.1.ckpt')
-        outPath = self._getExtraPath('denovo_affinity')
+        outPath = self._getExtraPath('inpainting_affinity')
         struct = self.inputAtomStruct.get()
         fileName = struct.getFileName()
         base = os.path.splitext(os.path.basename(fileName))[0]
@@ -216,7 +228,7 @@ class ProtInpainting(EMProtocol):
 
         args = [
             '--pdb_file', outFile,
-            '--ligand_file', (glob.glob(os.path.join(self._getExtraPath('denovo'), '*optimized-hs.sdf'))[0]),
+            '--ligand_file', (glob.glob(os.path.join(self._getExtraPath('inpainting'), '*optimized-hs.sdf'))[0]),
             '--multiple_ligands',
             '--add_hs_and_optimize_gen_ligs',
             '--arch', 'pocket',  # NEEDS to be this value bc of the model
@@ -225,10 +237,15 @@ class ProtInpainting(EMProtocol):
             '--coord_noise_scale', self.noiseScale.get(),
             '--num_workers', (self.numberOfThreads.get()),
             '--ckpt_path', modelPath,
-            '--save_dir', os.path.abspath(outPath)
+             '--save_dir', os.path.abspath(outPath),
+            '--max_pocket_size', self.maxPocketSize.get()
         ]
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
+
+        args.extend(['--seed', self.seed.get()])
+        if self.optimizeLigands.get():
+            args.append('--add_hs_and_optimize_gen_ligs')
 
         if self.useGpu.get():
             args.append('--gpus')
@@ -250,7 +267,7 @@ class ProtInpainting(EMProtocol):
         )
 
     def createOutputStep(self):
-        outPath = self._getExtraPath('scaffold')
+        outPath = self._getExtraPath('inpainting')
         sdfFiles = glob.glob(os.path.join(outPath, '*optimized-hs.sdf'))
 
         if not sdfFiles:

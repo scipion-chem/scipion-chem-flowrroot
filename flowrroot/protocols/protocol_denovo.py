@@ -94,7 +94,14 @@ class ProtDenovoGeneration(EMProtocol):
                       help='Choose whether the program sees whole protein or only the pocket.')
         group.addParam('nMolecules', params.IntParam, default=1,
                        label='Number of generated molecules: ', help="Number of generated molecules.")
-        group.addParam('sampleIters', params.IntParam, default=20,
+
+        group.addParam('seed', params.IntParam, default=42, label='Random seed:',expertLevel=params.LEVEL_ADVANCED,
+                        help='Seed for reproducible generation.')
+        group.addParam('maxPocketSize',params.IntParam,default=1000,label='Maximum pocket size:',expertLevel=params.LEVEL_ADVANCED,
+                       help='Maximum number of atoms allowed in the pocket.')
+        group.addParam('optimizeLigands', params.BooleanParam, default=True, expertLevel=params.LEVEL_ADVANCED,
+                        label='Optimize ligands:')
+        group.addParam('sampleIters', params.IntParam, default=20, expertLevel=params.LEVEL_ADVANCED,
                        label='Max. iterations: ', help="Maximum number of sample iterations.")
         group.addParam('noiseScale', params.FloatParam, default=0.0,
                        label='Noise: ', expertLevel=params.LEVEL_ADVANCED,
@@ -166,10 +173,14 @@ class ProtDenovoGeneration(EMProtocol):
             '--num_workers', (self.numberOfThreads.get()),
             '--ckpt_path', modelPath,
             '--save_dir', os.path.abspath(outPath),
-            '--filter_valid_unique'
+            '--filter_valid_unique',
+            '--max_pocket_size', self.maxPocketSize.get()
         ]
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
+        args.extend(['--seed', self.seed.get()])
+        if self.optimizeLigands.get():
+            args.append('--add_hs_and_optimize')
 
         if self.useGpu.get():
             args.append('--gpus')
@@ -212,10 +223,15 @@ class ProtDenovoGeneration(EMProtocol):
             '--coord_noise_scale', self.noiseScale.get(),
             '--num_workers', (self.numberOfThreads.get()),
             '--ckpt_path', modelPath,
-            '--save_dir', os.path.abspath(outPath)
+            '--save_dir', os.path.abspath(outPath),
+            '--max_pocket_size', self.maxPocketSize.get()
         ]
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
+
+        args.extend(['--seed', self.seed.get()])
+        if self.optimizeLigands.get():
+            args.append('--add_hs_and_optimize_gen_ligs')
 
         if self.useGpu.get():
             args.append('--gpus')
