@@ -28,10 +28,14 @@
 from pwchem.wizards import SelectElementWizard
 from .protocols import ProtDenovoGeneration, ProtScaffoldDesign, ProtGrowth, ProtInpainting
 import os
+import sys
+import subprocess
 from pwem.wizards import VariableWizard
 
 from pwchem.utils import getBaseName
 from pwchem.viewers import PyMolViewer
+from pwchem.constants import RDKIT_DIC
+from pwchem import Plugin
 
 SelectElementWizard().addTarget(protocol=ProtDenovoGeneration,
                                targets=['referenceMol'],
@@ -69,9 +73,9 @@ class ViewInputLigandAtomsWizard(VariableWizard):
             pml += "show cartoon, all\n"
 
         pml += f"load {molFile}, {molName}\n"
+        pml += f"remove hydrogens\n"
         pml += f"show sticks, {molName}\n"
 
-        pml += f"label {molName} and name C, index\n"
         pml += f"label {molName}, index\n"
 
         pml += "set label_size, 14\n"
@@ -97,6 +101,23 @@ class ViewInputLigandAtomsWizard(VariableWizard):
             print("Ligand not found")
             return
         molFile = mol.getFileName()
+        rdkitMolFile = molFile.replace(".sdf", "_rdkit.sdf")
+        scriptPath = os.path.join(os.path.dirname(__file__), "scripts", "addRDKITindices.py")
+        if not os.path.exists(rdkitMolFile):
+            env_name = str(RDKIT_DIC['name'])+'-'+str(RDKIT_DIC['version'])
+            subprocess.run(
+                [
+                    "conda", "run",
+                    "-n", env_name,
+                    "python",
+                    scriptPath,
+                    molFile,
+                    rdkitMolFile
+                ],
+                check=True
+            )
+
+        molFile = rdkitMolFile
         molName = getBaseName(molFile)
         proteinFile = None
         if hasattr(inSet, "getProteinFile"):

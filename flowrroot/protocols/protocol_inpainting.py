@@ -43,8 +43,9 @@ from pwem.objects import Sequence, SetOfSequences
 from pwchem.objects import SmallMolecule, SetOfSmallMolecules
 from pwchem.protocols.Sequences.protocol_define_sequences import ProtDefineSetOfSequences
 from pwchem.utils.utilsFasta import parseFasta
+from .protocol_denovo import ProtDenovoGeneration
 
-
+from .. import utils
 
 class ProtInpainting(EMProtocol):
     """
@@ -67,53 +68,20 @@ class ProtInpainting(EMProtocol):
 
 
         form.addSection(label='Input')
-        form.addParam('inputAtomStruct', params.PointerParam,
-                      pointerClass='AtomStruct',
-                      label="Input structure: ",
-                      help='Select the AtomStruct object')
-        form.addParam('inputSetOfMols', params.PointerParam,
-                      pointerClass='SetOfSmallMolecules',
-                      label="Input reference ligands set: ",
-                      help='Select the AtomStruct object')
-        form.addParam('referenceMol', params.StringParam,
-                        label='Reference ligand: ',
-                        help='Reference ligand')
-
-        form.addParam('affinity', params.BooleanParam, default=False,
-                       label="Predict affinity: ",
-                       help='Choose whether to predict affinity of the new molecules with input protein')
+        ProtDenovoGeneration.mainParams(form)
 
         group = form.addGroup('Parameters')
-        group.addParam('atoms', params.StringParam, default='', #todo create wizard
+        group.addParam('atoms', params.StringParam, default='',
                        label='Atoms to modify: ',
-                       help="Specify the atoms to modify.")
+                       help=(
+                           "Specify atom indices to modify.\n"
+                           "You can provide individual atoms separated by commas (e.g. 13,14,15),\n"
+                           "or use ranges with a hyphen (e.g. 13-18, which expands to 13,14,15,16,17,18).\n"
+                           "Both formats can be combined (e.g. 1-3,7,10-12)."
+                       ))
 
-        group.addParam('pocketCutoff', params.FloatParam, default=6.0,
-                       label='Pocket cutoff: ',
-                       help="Number of step size. Its related to the temperature at which the diffusion process samples the distribution.")
-        group.addParam('cutPocket', params.BooleanParam, default=True,
-                      label="Cut pocket: ",
-                      help='Choose whether the program sees whole protein or only the pocket.')
-        group.addParam('nMolecules', params.IntParam, default=1,
-                       label='Number of generated molecules: ', help="Number of generated molecules.")
+        ProtDenovoGeneration.parameters(group)
 
-        group.addParam('seed', params.IntParam, default=42, label='Random seed:',expertLevel=params.LEVEL_ADVANCED,
-                        help='Seed for reproducible generation.')
-        group.addParam('maxPocketSize',params.IntParam,default=1000,label='Maximum pocket size:',expertLevel=params.LEVEL_ADVANCED,
-                       help='Maximum number of atoms allowed in the pocket.')
-        group.addParam('optimizeLigands', params.BooleanParam, default=True, expertLevel=params.LEVEL_ADVANCED,
-                        label='Optimize ligands:')
-        group.addParam('sampleIters', params.IntParam, default=20, expertLevel=params.LEVEL_ADVANCED,
-                       label='Max. iterations: ', help="Maximum number of sample iterations.")
-        group.addParam('noiseScale', params.FloatParam, default=0.0,
-                       label='Noise: ', expertLevel=params.LEVEL_ADVANCED,
-                       help="How much noise added to generation to increase diversity.")
-        group.addParam('sampleMolSizes', params.BooleanParam, default=True,
-                        label="Sample molecule sizes: ", expertLevel=params.LEVEL_ADVANCED,
-                        help="Enables stochastic sampling of molecular sizes, allowing the model to generate ligands with varying number of atoms based on learned size distribution.")
-        group.addParam('batchCost', params.IntParam, default=20,
-                       label='Batch cost: ', expertLevel=params.LEVEL_ADVANCED,
-                       help="How much noise added to generation to increase diversity.")
         group.addParam('filterCondSubstructure', params.BooleanParam,
                        default=False,
                        label="Strict substructure filtering: ",
@@ -124,7 +92,7 @@ class ProtInpainting(EMProtocol):
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         self._insertFunctionStep(self.convertFilesStep)
-        self._insertFunctionStep(self.createLigandFile)
+        self._insertFunctionStep(self.createLigandFileStep)
         self._insertFunctionStep(self.runFlowrStep)
         if self.affinity.get():
             self._insertFunctionStep(self.predictAffinityStep)
@@ -132,24 +100,10 @@ class ProtInpainting(EMProtocol):
         self._insertFunctionStep(self.createOutputStep)
 
     def convertFilesStep(self):
-        struct = self.inputAtomStruct.get()
-        fileName = struct.getFileName()
-        base = os.path.splitext(os.path.basename(fileName))[0]
-        outFile = self._getExtraPath(base + '.pdb')
-        if fileName.lower().endswith('.cif'):
-            cifToPdb(fileName, outFile)
+        return utils._convertFiles(self)
 
-    def createLigandFile(self):
-        molFile = self._getExtraPath('ligands.txt')
-        outPath = self._getExtraPath('ligands.sdf')
-        with open(molFile, 'w') as f:
-            for mol in self.inputSetOfMols.get():
-                f.write(os.path.abspath(mol.getFileName()) + '\n')
-
-        args = ['-i', os.path.abspath(molFile), '-o', os.path.abspath(outPath), '-of', 'sdf']
-
-        Plugin.runScript(self, 'rdkit_IO.py', args, env=RDKIT_DIC, cwd=self._getExtraPath())
-
+    def createLigandFileStep(self):
+        utils._createLigandFile(self)
 
     def runFlowrStep(self):
         scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
@@ -165,40 +119,14 @@ class ProtInpainting(EMProtocol):
         if not os.path.exists(outFile):
             outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
 
-        args = [
-            '--pdb_file', outFile,
-            '--ligand_file', (os.path.abspath(self._getExtraPath('ligands.sdf'))),
-            '--ligand_id', ligIdx,
-            '--arch', 'pocket', # NEEDS to be this value bc of the model
-            '--pocket_type', 'holo', # NEEDS to be this value bc of the model
-            '--pocket_cutoff', self.pocketCutoff.get(),
-            '--sample_n_molecules_per_target', self.nMolecules.get(),
-            '--max_sample_iter', self.sampleIters.get(),
-            '--coord_noise_scale', self.noiseScale.get(),
-            '--batch_cost', self.batchCost.get(),
-            '--num_workers', (self.numberOfThreads.get()),
-            '--ckpt_path', modelPath,
-            '--save_dir', os.path.abspath(outPath),
-            '--filter_valid_unique',
-            '--max_pocket_size', self.maxPocketSize.get(),
-            '--substructure_inpainting',
-            '--substructure'
-
-        ] + [idx for idx in re.split(r'[\s,]+', self.atoms.get().strip()) if idx]
+        args = utils._createArgs(self, outFile, outPath)
 
         if self.filterCondSubstructure.get():
             args.append('--filter_cond_substructure')
 
-        args.extend(['--seed', self.seed.get()])
-        if self.optimizeLigands.get():
-            args.append('--add_hs_and_optimize')
-
-        if self.cutPocket.get(): args.append('--cut_pocket')
-        if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
-
-        if self.useGpu.get():
-            args.append('--gpus')
-            args.append('1')
+        args.append('--substructure_inpainting')
+        args.append('--substructure')
+        args = args+(self.parse_atoms(self.atoms.get()))
 
         fullProgram = (
             f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root')}:$PYTHONPATH && "
@@ -216,62 +144,22 @@ class ProtInpainting(EMProtocol):
         )
 
     def predictAffinityStep(self):
-        scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root/flowr/predict/predict_from_pdb.py')
-        modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'checkpoints/flowr_root_v2.1.ckpt')
-        outPath = self._getExtraPath('inpainting_affinity')
-        struct = self.inputAtomStruct.get()
-        fileName = struct.getFileName()
-        base = os.path.splitext(os.path.basename(fileName))[0]
-        outFile = self._getExtraPath(base + '.pdb')
-        if not os.path.exists(outFile):
-            outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
-
-        args = [
-            '--pdb_file', outFile,
-            '--ligand_file', (glob.glob(os.path.join(self._getExtraPath('inpainting'), '*optimized-hs.sdf'))[0]),
-            '--multiple_ligands',
-            '--add_hs_and_optimize_gen_ligs',
-            '--arch', 'pocket',  # NEEDS to be this value bc of the model
-            '--pocket_type', 'holo',  # NEEDS to be this value bc of the model
-            '--pocket_cutoff', self.pocketCutoff.get(),
-            '--coord_noise_scale', self.noiseScale.get(),
-            '--num_workers', (self.numberOfThreads.get()),
-            '--ckpt_path', modelPath,
-             '--save_dir', os.path.abspath(outPath),
-            '--max_pocket_size', self.maxPocketSize.get()
-        ]
-        if self.cutPocket.get(): args.append('--cut_pocket')
-        if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
-
-        args.extend(['--seed', self.seed.get()])
-        if self.optimizeLigands.get():
-            args.append('--add_hs_and_optimize_gen_ligs')
-
-        if self.useGpu.get():
-            args.append('--gpus')
-            args.append('1')
-
-        fullProgram = (
-            f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root')}:$PYTHONPATH && "
-            f"python"
-        )
-
-        args_str = " ".join(map(str, args))
-
-        Plugin.runCondaCommand(
-            self,
-            program=fullProgram,
-            args=f"{scriptPath} {args_str}",
-            condaDic=FLOWR_DIC,
-            cwd=Plugin.getVar(self._getExtraPath())
-        )
+        utils._predictAffinity(self)
 
     def createOutputStep(self):
         outPath = self._getExtraPath('inpainting')
-        sdfFiles = glob.glob(os.path.join(outPath, '*optimized-hs.sdf'))
+        if self.optimizeLigands.get():
+            sdfFiles = glob.glob(os.path.join(outPath, '*optimized*.sdf'))
+            sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
+            if not sdfFiles:
+                sdfFiles = glob.glob(os.path.join(outPath, '*.sdf'))
+                sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
+        else:
+            sdfFiles = glob.glob(os.path.join(outPath, '*.sdf'))
+            sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
 
         if not sdfFiles:
-            self.warning("No SDF files found")
+            self.warning("No valid (non-empty) SDF files found")
             return
         splitDir = self._getPath()
         for sdf in sdfFiles:
@@ -318,7 +206,18 @@ class ProtInpainting(EMProtocol):
         return warnings
 
     # --------------------------- UTILS functions -----------------------------------
-    def getLigandIndex(self):
-        for i, mol in enumerate(self.inputSetOfMols.get()):
-            if str(mol) == self.referenceMol.get():
-                return i
+
+    def parse_atoms(self, atom_str):
+        atoms = []
+
+        for part in re.split(r'[\s,]+', atom_str.strip()):
+            if not part:
+                continue
+
+            if '-' in part:
+                start, end = map(int, part.split('-'))
+                atoms.extend(range(start - 1, end))
+            else:
+                atoms.append(int(part) - 1)
+
+        return atoms
