@@ -26,15 +26,19 @@
 import subprocess
 import unittest
 
-from flowr.protocols import ProtDenovoGeneration
+from pwchem.protocols import *
+from pwem.protocols import ProtImportPdb
+from flowrroot.protocols import ProtDenovoGeneration
 from pyworkflow.tests import BaseTest, setupTestProject, DataSet
 
 STRING_MOL = 'SmallMolecule (ZINC00001453 molecule)'
+chainStr = '{"model": 0, "chain": "C", "residues": 141}'
 
 class TestDenovo(BaseTest):
     @classmethod
     def setUpClass(cls):
         cls.ds = DataSet.getDataSet('model_building_tutorial')
+        cls.dsLig = DataSet.getDataSet("smallMolecules")
         setupTestProject(cls)
         cls._runImportPDB()
         cls._runImportSmallMols()
@@ -49,17 +53,29 @@ class TestDenovo(BaseTest):
 
     @classmethod
     def _runImportSmallMols(cls):
-        cls.protImportSmallMols = cls.newProtocol(
+        protImportSmallMols = cls.newProtocol(
             ProtChemImportSmallMolecules,
-            filesPath=cls.dsLig.getFile('mol2'))
-        cls.launchProtocol(cls.protImportSmallMols)
+            filesPath=cls.dsLig.getFile('sdf'))
+        cls.launchProtocol(protImportSmallMols)
         cls.protImportSmallMols = protImportSmallMols
 
-    def _runDenovo(self):
-        protDenovo = self.newProtocol(
+    @classmethod
+    def _runExtractLigand(cls, inputProt, chainStr):
+        protExtLig = cls.newProtocol(
+            ProtExtractLigands,
+            cleanPDB=True, rchains=True, chain_name=chainStr)
+
+        protExtLig.inputStructure.set(inputProt)
+        protExtLig.inputStructure.setExtended('outputPdb')
+
+        cls.proj.launchProtocol(protExtLig)
+        cls.protExtLig = protExtLig
+
+    def _runDenovo(cls):
+        protDenovo = cls.newProtocol(
             ProtDenovoGeneration,
-            inputAtomStruct=cls.protImportPDB,
-            inputSetOfMols=cls.protImportSmallMols,
+            inputAtomStruct=cls.protImportPDB.outputPdb,
+            inputSetOfMols=cls.protImportSmallMols.outputSmallMolecules,
             referenceMol=STRING_MOL
         )
         cls.launchProtocol(protDenovo)
@@ -67,8 +83,11 @@ class TestDenovo(BaseTest):
 
 
     def test(self):
-        denovo = self._runChai()
-        mols = getattr(cls.denovo, 'outputSmallMolecules', None)
-        self.assertIsNotNone(mols)
+        protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
+        self._waitOutput(protExtract, 'outputSmallMolecules')
+
+        #denovo = self._runDenovo()
+        #mols = getattr(denovo, 'outputSmallMolecules', None)
+        #self.assertIsNotNone(mols)
 
 

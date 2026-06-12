@@ -25,5 +25,5 @@
 # **************************************************************************
 
 
-from flowrroot.tests.test_flower import *
+from flowrroot.tests.test_flowr import *
 

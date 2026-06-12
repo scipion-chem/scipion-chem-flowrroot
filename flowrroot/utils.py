@@ -4,7 +4,6 @@ import string
 import re
 
 import os, glob
-import pyworkflow.protocol.params as params
 from pwem.protocols import EMProtocol
 from pyworkflow.object import String
 import shutil
@@ -25,6 +24,8 @@ def _convertFiles(self):
         cifToPdb(fileName, outFile)
     elif fileName.lower().endswith('.pdbqt'):
         pdbqt2other(self, fileName, outFile)
+    else:
+        outFile = fileName
 
     return outFile
 
