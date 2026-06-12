@@ -25,5 +25,5 @@
 # **************************************************************************
 
 
-from biofold.tests.test_biofold import *
+from flowrroot.tests.test_flower import *
 
