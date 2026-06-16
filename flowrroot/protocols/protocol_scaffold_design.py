@@ -106,9 +106,6 @@ class ProtScaffoldDesign(EMProtocol):
     def runFlowrStep(self):
         scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
         outPath = self._getExtraPath('scaffold')
-        modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'checkpoints/flowr_root_v2.1.ckpt')
-
-        ligIdx = self.getLigandIndex()
 
         struct = self.inputAtomStruct.get()
         fileName = struct.getFileName()

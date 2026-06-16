@@ -28,26 +28,28 @@ import unittest
 
 from pwchem.protocols import *
 from pwem.protocols import ProtImportPdb
-from flowrroot.protocols import ProtDenovoGeneration
+import pwem.protocols as emprot
+from flowrroot.protocols import ProtDenovoGeneration, ProtGrowth, ProtInpainting, ProtScaffoldDesign
 from pyworkflow.tests import BaseTest, setupTestProject, DataSet
 
-STRING_MOL = 'SmallMolecule (ZINC00001453 molecule)'
-chainStr = '{"model": 0, "chain": "C", "residues": 141}'
+STRING_MOL = 'SmallMolecule (g1_9ktp_OGA-1_1 molecule)'
+chainStr = '{"model": 0, "chain": "A", "residues": 328}'
 
 class TestDenovo(BaseTest):
     @classmethod
     def setUpClass(cls):
-        cls.ds = DataSet.getDataSet('model_building_tutorial')
         cls.dsLig = DataSet.getDataSet("smallMolecules")
         setupTestProject(cls)
         cls._runImportPDB()
         cls._runImportSmallMols()
+        cls._runExtractLigand()
+        cls._runJoinSets()
 
     @classmethod
     def _runImportPDB(cls):
         protImportPDB = cls.newProtocol(
             ProtImportPdb,
-            inputPdbData=1, pdbFile=cls.ds.getFile('PDBx_mmCIF/5ni1.pdb'))
+            pdbId='9ktp')
         cls.launchProtocol(protImportPDB)
         cls.protImportPDB = protImportPDB
 
@@ -60,34 +62,153 @@ class TestDenovo(BaseTest):
         cls.protImportSmallMols = protImportSmallMols
 
     @classmethod
-    def _runExtractLigand(cls, inputProt, chainStr):
+    def _runExtractLigand(cls):
         protExtLig = cls.newProtocol(
             ProtExtractLigands,
             cleanPDB=True, rchains=True, chain_name=chainStr)
 
-        protExtLig.inputStructure.set(inputProt)
+        protExtLig.inputStructure.set(cls.protImportPDB)
         protExtLig.inputStructure.setExtended('outputPdb')
-
-        cls.proj.launchProtocol(protExtLig)
+        cls.proj.launchProtocol(protExtLig, wait=True)
         cls.protExtLig = protExtLig
+
+    @classmethod
+    def _runJoinSets(cls):
+        unionProt = cls.newProtocol(emprot.ProtUnionSet)
+
+        unionProt.inputSets.append(cls.protExtLig.outputSmallMolecules)
+        unionProt.inputSets.append(cls.protImportSmallMols.outputSmallMolecules)
+        cls.launchProtocol(unionProt, wait=True)
+        cls.unionProt = unionProt
+
 
     def _runDenovo(cls):
         protDenovo = cls.newProtocol(
             ProtDenovoGeneration,
             inputAtomStruct=cls.protImportPDB.outputPdb,
-            inputSetOfMols=cls.protImportSmallMols.outputSmallMolecules,
+            inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL
         )
         cls.launchProtocol(protDenovo)
-        cls.protDenovo = protDenovo
+        return protDenovo
 
 
     def test(self):
-        protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
-        self._waitOutput(protExtract, 'outputSmallMolecules')
+        denovo = self._runDenovo()
+        self._waitOutput(denovo, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(denovo, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
 
-        #denovo = self._runDenovo()
-        #mols = getattr(denovo, 'outputSmallMolecules', None)
-        #self.assertIsNotNone(mols)
+class TestGrowth(TestDenovo):
+    @classmethod
+    def setUpClass(cls):
+        cls.dsLig = DataSet.getDataSet("smallMolecules")
+        setupTestProject(cls)
+        cls._runImportPDB()
+        cls._runImportSmallMols()
+        cls._runExtractLigand()
+        cls._runJoinSets()
 
+    def _runGrowthCore(cls):
+        protGrowthCore = cls.newProtocol(
+            ProtGrowth,
+            inputAtomStruct=cls.protImportPDB.outputPdb,
+            inputSetOfMols=cls.unionProt.outputSet,
+            referenceMol=STRING_MOL,
+            option=0
+        )
+        cls.launchProtocol(protGrowthCore)
+        return protGrowthCore
+
+    def _runGrowthFrag(cls):
+        protGrowthFrag = cls.newProtocol(
+            ProtGrowth,
+            inputAtomStruct=cls.protImportPDB.outputPdb,
+            inputSetOfMols=cls.unionProt.outputSet,
+            referenceMol=STRING_MOL,
+            option=1
+        )
+        cls.launchProtocol(protGrowthFrag)
+        return protGrowthFrag
+
+    def test(self):
+        coreGrowth = self._runGrowthCore()
+        self._waitOutput(coreGrowth, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(coreGrowth, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
+
+        fragGrowth = self._runGrowthFrag()
+        self._waitOutput(fragGrowth, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(fragGrowth, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
+
+class TestInpainting(TestDenovo):
+    @classmethod
+    def setUpClass(cls):
+        cls.dsLig = DataSet.getDataSet("smallMolecules")
+        setupTestProject(cls)
+        cls._runImportPDB()
+        cls._runImportSmallMols()
+        cls._runExtractLigand()
+        cls._runJoinSets()
+
+    def _runInpaint(cls):
+        protInpaint = cls.newProtocol(
+            ProtInpainting,
+            inputAtomStruct=cls.protImportPDB.outputPdb,
+            inputSetOfMols=cls.unionProt.outputSet,
+            referenceMol=STRING_MOL,
+            atoms='1,3,5'
+        )
+        cls.launchProtocol(protInpaint)
+        return protInpaint
+
+    def test(self):
+        coreInpainting= self._runInpaint()
+        self._waitOutput(coreInpainting, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(coreInpainting, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
+
+class TestScaffold(TestDenovo):
+    @classmethod
+    def setUpClass(cls):
+        cls.dsLig = DataSet.getDataSet("smallMolecules")
+        setupTestProject(cls)
+        cls._runImportPDB()
+        cls._runImportSmallMols()
+        cls._runExtractLigand()
+        cls._runJoinSets()
+
+    def _runScaffoldHopping(cls):
+        protScaffold = cls.newProtocol(
+            ProtScaffoldDesign,
+            inputAtomStruct=cls.protImportPDB.outputPdb,
+            inputSetOfMols=cls.unionProt.outputSet,
+            referenceMol=STRING_MOL,
+            option=0
+        )
+        cls.launchProtocol(protScaffold)
+        return protScaffold
+
+    def _runScaffoldElab(cls):
+        protScaffold = cls.newProtocol(
+            ProtScaffoldDesign,
+            inputAtomStruct=cls.protImportPDB.outputPdb,
+            inputSetOfMols=cls.unionProt.outputSet,
+            referenceMol=STRING_MOL,
+            option=1
+        )
+        cls.launchProtocol(protScaffold)
+        return protScaffold
+
+    def test(self):
+        protScaffold= self._runScaffoldHopping()
+        self._waitOutput(protScaffold, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(protScaffold, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
+
+        protScaffoldElab = self._runScaffoldElab()
+        self._waitOutput(protScaffoldElab, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(protScaffoldElab, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
 
