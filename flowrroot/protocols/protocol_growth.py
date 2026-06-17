@@ -49,7 +49,215 @@ from .. import utils
 
 class ProtGrowth(EMProtocol):
     """
-    """
+    AI Generated:
+
+Fragment and Core Growth Protocol
+
+This protocol performs structure-guided molecular growth using the FLOWR
+generative framework. Starting from a reference ligand bound to a protein,
+the protocol generates novel molecules by preserving a selected molecular
+substructure and expanding it within the target binding pocket.
+
+Two growth strategies are available:
+
+1. Core Growth:
+    Preserves a selected ring system (core scaffold) from the reference
+    ligand and generates new substituents around it.
+
+2. Fragment Growth:
+    Preserves an input fragment and extends it by adding new atoms and
+    chemical groups, producing larger molecules while maintaining the
+    original fragment.
+
+The generated compounds remain conditioned on the protein binding site,
+allowing exploration of chemically diverse ligands compatible with the
+target pocket.
+
+Core Concepts
+-------------
+Structure-Based Ligand Design:
+    Molecule generation is guided by the three-dimensional geometry of the
+    protein binding pocket.
+
+Core Growing:
+    A selected ring system from the reference ligand is retained while
+    surrounding regions are redesigned. This approach is useful for
+    scaffold optimization and lead expansion.
+
+Fragment Growing:
+    A molecular fragment is fixed and the model generates additional
+    chemical structure around it. This is commonly used in fragment-based
+    drug discovery workflows.
+
+FLOWR Model:
+    A diffusion-based generative framework that creates chemically valid
+    molecules conditioned on protein structural information.
+
+Shape-Aware Prior:
+    An anisotropic Gaussian prior can be used to bias growth along
+    directions that better match the geometry of the binding site.
+
+Affinity Prediction:
+    Generated molecules may optionally be evaluated using FLOWR affinity
+    prediction models.
+
+Workflow
+--------
+1. Input preparation:
+    - A protein structure is provided.
+    - A reference ligand identifies the target binding site.
+
+2. Structure preprocessing:
+    - Protein and ligand files are converted into FLOWR-compatible formats.
+    - Pocket information is extracted around the ligand.
+
+3. Growth setup:
+    - Core Growth:
+        A ring system is selected and preserved.
+    - Fragment Growth:
+        A molecular fragment is selected and expanded.
+
+4. Molecular generation:
+    - FLOWR generates new structures while maintaining the selected
+      substructure.
+    - Sampling parameters control diversity and molecule size.
+
+5. Optional optimization:
+    - Generated molecules can be chemically refined and optimized.
+
+6. Optional affinity prediction:
+    - Binding affinity estimates are calculated for generated ligands.
+
+7. Output generation:
+    - Generated molecules are exported as individual SDF files.
+    - Results are stored as a SetOfSmallMolecules object.
+
+Input
+-----
+- inputAtomStruct:
+    Protein structure containing the target binding site.
+
+- inputSetOfMols:
+    SetOfSmallMolecules containing reference ligands.
+
+- referenceMol:
+    Name of the ligand used to define the binding pocket and growth region.
+
+Growth Modes
+------------
+Core Growth
+~~~~~~~~~~~
+Preserves a selected ring system from the reference ligand and redesigns
+the surrounding molecular environment.
+
+Parameters:
+    - ringIndex:
+        Ring system to preserve. By default, the first (typically largest)
+        ring system is selected.
+
+Fragment Growth
+~~~~~~~~~~~~~~~
+Uses an existing molecular fragment as a starting point and generates
+additional atoms around it.
+
+Parameters:
+    - growSize:
+        Number of heavy atoms to add. If left empty, molecular sizes are
+        sampled automatically by the model.
+
+General Parameters
+------------------
+Pocket Definition
+~~~~~~~~~~~~~~~~~
+- pocketCutoff:
+    Distance cutoff (Å) used to define pocket residues surrounding the
+    reference ligand.
+
+- cutPocket:
+    If enabled, only the binding pocket is used during generation.
+    Otherwise, the complete protein structure is provided.
+
+Generation Control
+~~~~~~~~~~~~~~~~~~
+- nMolecules:
+    Number of molecules to generate.
+
+- seed:
+    Random seed for reproducible results.
+
+- sampleIters:
+    Maximum number of sampling iterations.
+
+- noiseScale:
+    Amount of stochastic noise introduced during generation.
+    Higher values generally increase structural diversity.
+
+- sampleMolSizes:
+    Enables stochastic sampling of ligand sizes.
+
+- batchCost:
+    Internal generation batch-size parameter used by FLOWR.
+
+Pocket Constraints
+~~~~~~~~~~~~~~~~~~
+- minPocketSize:
+    Minimum number of atoms required in the extracted pocket.
+
+- maxPocketSize:
+    Maximum number of atoms allowed in the extracted pocket.
+
+Growth Parameters
+~~~~~~~~~~~~~~~~~
+- anisotropic:
+    Enables a shape-aware anisotropic Gaussian prior that biases growth
+    according to the geometry of the binding site.
+
+- filterCondSubstructure:
+    Applies strict filtering to ensure generated molecules retain the
+    specified substructure. Molecules that fail the constraint are removed.
+
+Ligand Postprocessing
+~~~~~~~~~~~~~~~~~~~~~
+- optimizeLigands:
+    Perform chemical optimization after generation.
+
+- kekulize:
+    Apply kekulization during molecular processing.
+
+Affinity Evaluation
+~~~~~~~~~~~~~~~~~~~
+- affinity:
+    Predict protein–ligand binding affinity for generated molecules.
+
+GPU Support
+~~~~~~~~~~~
+- useGpu:
+    Execute FLOWR using GPU acceleration.
+
+- gpuList:
+    GPU devices available for execution.
+
+Output
+------
+- outputSmallMolecules:
+    SetOfSmallMolecules containing all generated ligands.
+
+Each generated molecule includes:
+    - Molecular structure (SDF format)
+    - Automatically assigned molecule identifier
+    - Preserved core or fragment from the input ligand
+    - Optional affinity predictions (if requested)
+
+Use Cases
+---------
+- Lead optimization through scaffold expansion
+- Fragment-based drug discovery
+- Core hopping and scaffold decoration
+- Structure-guided ligand elaboration
+- Exploration of chemical space around known binders
+- Generation of novel analogues of active compounds
+- Protein-specific molecular design workflows
+"""
     _label = 'Fragment and core growth'
 
     # -------------------------- DEFINE param functions ----------------------

@@ -48,9 +48,162 @@ from .. import utils
 
 class ProtDenovoGeneration(EMProtocol):
     """
-    De novo generation creates new ligands from scratch,
-     using only the protein pocket structure as input. The model learns to generate molecules that are complementary to the binding site
-    """
+    AI Generated:
+
+De Novo Ligand Generation Protocol
+
+This protocol performs structure-based de novo ligand generation using the
+FLOWR generative model. Starting from a protein structure and a reference
+ligand, it creates entirely new candidate molecules designed to fit the
+binding pocket of the target protein.
+
+Unlike virtual screening approaches that search existing compound libraries,
+de novo generation constructs novel molecular structures directly from the
+protein–ligand environment learned by the generative model.
+
+Core Concepts
+-------------
+Protein-Guided Molecular Generation:
+    The model uses the three-dimensional structure of a protein binding site
+    to generate new ligands predicted to be compatible with the pocket.
+
+Binding Pocket Representation:
+    The region surrounding the reference ligand is extracted and provided
+    to the generative model as structural context.
+
+FLOWR Model:
+    A diffusion-based molecular generation framework capable of creating
+    chemically valid molecules directly from protein structural information.
+
+Ligand Optimization:
+    Generated molecules can optionally undergo post-processing and
+    optimization steps to improve chemical validity and quality.
+
+Affinity Prediction:
+    Generated molecules may optionally be evaluated using the FLOWR affinity
+    prediction model to estimate protein–ligand binding strength.
+
+Workflow
+--------
+1. Input preparation:
+    - A protein structure is provided.
+    - A reference ligand identifies the target binding pocket.
+
+2. Structure preprocessing:
+    - Input structures are converted into formats required by FLOWR.
+    - Pocket information is extracted around the reference ligand.
+
+3. Ligand preparation:
+    - The selected reference ligand is exported and used to define
+      the generation region.
+
+4. De novo generation:
+    - FLOWR generates new candidate ligands inside the binding pocket.
+    - Molecules are sampled according to the specified generation parameters.
+
+5. Optional ligand optimization:
+    - Generated structures can be refined and chemically optimized.
+
+6. Optional affinity prediction:
+    - Predicted binding affinity values are calculated for generated ligands.
+
+7. Output creation:
+    - Generated molecules are converted into individual SDF files.
+    - Molecules are stored in a Scipion SetOfSmallMolecules object.
+
+Input
+-----
+- inputAtomStruct:
+    Protein structure containing the target binding site.
+
+- inputSetOfMols:
+    SetOfSmallMolecules containing reference ligands.
+
+- referenceMol:
+    Name of the ligand used to define the binding pocket.
+
+Parameters
+----------
+Pocket Definition
+~~~~~~~~~~~~~~~~~
+- pocketCutoff:
+    Distance cutoff (Å) used to define pocket residues around the
+    reference ligand.
+
+- cutPocket:
+    If enabled, only the binding pocket is provided to the model.
+    Otherwise, the complete protein structure is used.
+
+Generation Control
+~~~~~~~~~~~~~~~~~~
+- nMolecules:
+    Number of molecules to generate.
+
+- seed:
+    Random seed for reproducible generation.
+
+- sampleIters:
+    Maximum number of sampling iterations.
+
+- noiseScale:
+    Amount of stochastic noise introduced during generation.
+    Higher values generally increase molecular diversity.
+
+- sampleMolSizes:
+    Enables stochastic sampling of molecular sizes, allowing
+    generation of ligands with different numbers of atoms.
+
+- batchCost:
+    Internal generation batch size parameter used by FLOWR.
+
+Pocket Constraints
+~~~~~~~~~~~~~~~~~~
+- minPocketSize:
+    Minimum number of pocket atoms accepted.
+
+- maxPocketSize:
+    Maximum number of pocket atoms accepted.
+
+Ligand Postprocessing
+~~~~~~~~~~~~~~~~~~~~~
+- optimizeLigands:
+    Perform ligand optimization after generation.
+
+- kekulize:
+    Apply kekulization during molecular processing.
+
+Affinity Evaluation
+~~~~~~~~~~~~~~~~~~~
+- affinity:
+    Predict binding affinity for generated molecules.
+
+GPU Support
+~~~~~~~~~~~
+- useGpu:
+    Execute FLOWR using GPU acceleration.
+
+- gpuList:
+    GPU devices available for execution.
+
+Output
+------
+- outputSmallMolecules:
+    SetOfSmallMolecules containing all generated ligands.
+
+Each generated molecule includes:
+    - Molecular structure (SDF format)
+    - Automatically assigned molecule identifier
+    - Optional affinity predictions (if requested)
+
+Use Cases
+---------
+- De novo drug design
+- Lead discovery for novel protein targets
+- Generation of pocket-specific ligand libraries
+- Exploration of unexplored chemical space
+- Creation of candidate molecules for docking and affinity evaluation
+- Structure-based molecular design workflows
+"""
     _label = 'De Novo ligand generation'
 
     @classmethod

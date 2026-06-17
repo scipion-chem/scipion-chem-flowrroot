@@ -51,6 +51,107 @@ from .. import utils
 
 class ProtScaffoldDesign(EMProtocol):
     """
+    AI Generated:
+
+    This protocol performs scaffold-based ligand design using the FLOWR generative
+    framework. Starting from a protein structure and a reference ligand, it
+    generates novel compounds that preserve specific structural or functional
+    characteristics of the input molecule while exploring new chemical space.
+
+    The protocol supports two complementary design strategies:
+
+    - Scaffold Hopping:
+        Preserves the key functional groups responsible for protein interactions
+        while replacing the central molecular scaffold. This enables exploration
+        of alternative chemotypes that may retain biological activity while
+        improving properties such as novelty, selectivity, or patentability.
+
+    - Scaffold Elaboration:
+        Preserves the core scaffold of the reference ligand while generating
+        new substituents, decorations, and side chains. This strategy is useful
+        for lead optimization and structure-activity relationship (SAR) studies.
+
+    Core Concepts
+    -------------
+    FLOWR Generative Model:
+        Deep learning framework that generates novel molecules conditioned on
+        the geometry of a protein binding pocket and an input reference ligand.
+
+    Protein-Guided Design:
+        Molecules are generated using structural information from the receptor,
+        allowing designs to remain compatible with the target binding site.
+
+    Scaffold Hopping:
+        Generates chemically distinct scaffolds while attempting to preserve
+        important interaction patterns from the reference ligand.
+
+    Scaffold Elaboration:
+        Retains the central scaffold and modifies peripheral regions to improve
+        potency, selectivity, physicochemical properties, or novelty.
+
+    Workflow
+    --------
+    1. Import protein structure and reference ligand.
+    2. Convert structures into FLOWR-compatible formats.
+    3. Extract and prepare the protein binding pocket.
+    4. Configure the desired design strategy:
+           - Scaffold hopping
+           - Scaffold elaboration
+    5. Execute FLOWR conditional molecular generation.
+    6. Optionally optimize generated ligand geometries.
+    7. Optionally predict protein-ligand affinity.
+    8. Split generated molecule collections into individual compounds.
+    9. Export molecules as a SetOfSmallMolecules object.
+
+    Generation Parameters
+    ---------------------
+    Pocket Processing:
+        - Pocket cutoff distance
+        - Pocket extraction around reference ligand
+        - Minimum and maximum pocket sizes
+
+    Sampling Controls:
+        - Number of molecules to generate
+        - Random seed
+        - Number of diffusion iterations
+        - Noise level for diversity
+        - Stochastic molecule size sampling
+
+    Post-processing:
+        - Ligand geometry optimization
+        - Optional affinity prediction
+        - Optional strict substructure filtering
+
+    Design Modes
+    ------------
+    Scaffold Hopping:
+        Preserves functional groups and interaction motifs while replacing
+        the underlying scaffold architecture.
+
+    Scaffold Elaboration:
+        Preserves the scaffold and generates alternative substituents,
+        decorations, and side chains around the retained core.
+
+    Outputs
+    -------
+    outputSmallMolecules:
+        A SetOfSmallMolecules containing all successfully generated compounds.
+
+    Each SmallMolecule includes:
+        - Generated molecular structure (SDF)
+        - Molecule identifier
+        - Associated receptor structure
+        - Optional affinity predictions when enabled
+
+    Use Cases
+    ---------
+    - Lead optimization campaigns
+    - Scaffold hopping for novel chemotype discovery
+    - Exploration of structure-activity relationships
+    - Generation of patentable analogs
+    - Protein-guided ligand design
+    - Hit expansion and compound diversification
+    - Discovery of alternative scaffolds with retained activity
     """
     _label = 'Scaffold-based design'
 
