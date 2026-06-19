@@ -30,7 +30,7 @@ import re
 import os, glob
 import pyworkflow.protocol.params as params
 from pwem.protocols import EMProtocol
-from pyworkflow.object import String
+from pyworkflow.object import String, Float
 import shutil
 
 from pwchem import Plugin
@@ -308,8 +308,7 @@ Use Cases
         self._insertFunctionStep(self.convertFilesStep)
         self._insertFunctionStep(self.createLigandFileStep)
         self._insertFunctionStep(self.runFlowrStep)
-        if self.affinity.get():
-            self._insertFunctionStep(self.predictAffinityStep)
+        self._insertFunctionStep(self.genIndivMoleculesStep)
 
         self._insertFunctionStep(self.createOutputStep)
 
@@ -361,51 +360,28 @@ Use Cases
             cwd=Plugin.getVar(self._getExtraPath())
         )
 
-    def predictAffinityStep(self):
-        utils._predictAffinity(self)
+    def genIndivMoleculesStep(self):
+        utils._individualMols(self, 'growth')
 
     def createOutputStep(self):
-        outPath = self._getExtraPath('growth')
-        if self.optimizeLigands.get():
-            sdfFiles = glob.glob(os.path.join(outPath, '*optimized*.sdf'))
-            sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
-            if not sdfFiles:
-                sdfFiles = glob.glob(os.path.join(outPath, '*.sdf'))
-                sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
-        else:
-            sdfFiles = glob.glob(os.path.join(outPath, '*.sdf'))
-            sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
-
-        if not sdfFiles:
-            self.warning("No valid (non-empty) SDF files found")
-            return
-
-        if not sdfFiles:
-            self.warning("No SDF files found")
-            return
-        splitDir = self._getPath()
-        for sdf in sdfFiles:
-            args = [
-                '-i', os.path.abspath(sdf),
-                '-od', os.path.abspath(splitDir),
-                '-of', 'sdf',
-                '-ob', 'flowr_mol'
-            ]
-
-            Plugin.runScript(
-                self,
-                'rdkit_IO.py',
-                args,
-                env=RDKIT_DIC,
-                cwd=self._getExtraPath()
-            )
-
         sdfs = glob.glob(os.path.join(self._getPath(), '*.sdf'))
         outMols = SetOfSmallMolecules().create(outputPath=self._getPath())
         outMols.setProteinFile(self.inputAtomStruct.get().getFileName())
         for sdf in sdfs:
             molName = os.path.splitext(os.path.basename(sdf))[0]
             mol = SmallMolecule(smallMolFilename=sdf, molName=molName)
+
+            if self.affinity.get():
+                props = utils._extractSdfProperties(sdf)
+                mol.pIC50 = Float()
+                mol.pKi = Float()
+                mol.pKd = Float()
+                mol.pEC50 = Float()
+                mol.setAttributeValue('pIC50', props.get("pic50"))
+                mol.setAttributeValue('pKi', props.get("pki"))
+                mol.setAttributeValue('pKd', props.get("pkd"))
+                mol.setAttributeValue('pEC50', props.get("pec50"))
+
             outMols.append(mol)
 
         self._defineOutputs(outputSmallMolecules=outMols)

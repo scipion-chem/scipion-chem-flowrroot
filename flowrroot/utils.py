@@ -40,64 +40,57 @@ def _createLigandFile(self):
 
     Plugin.runScript(self, 'rdkit_IO.py', args, env=RDKIT_DIC, cwd=self._getExtraPath())
 
-def _predictAffinity(self):
-    scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root/flowr/predict/predict_from_pdb.py')
-    modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'checkpoints/flowr_root_v2.1.ckpt')
-    outPath = self._getExtraPath('denovo_affinity')
-    struct = self.inputAtomStruct.get()
-    fileName = struct.getFileName()
-    base = os.path.splitext(os.path.basename(fileName))[0]
-    outFile = self._getExtraPath(base + '.pdb')
-    if not os.path.exists(outFile):
-        outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
+def _individualMols(self, folder):
+    outPath = self._getExtraPath(folder)
 
     if self.optimizeLigands.get():
-        sdfFiles = glob.glob(os.path.join(self._getExtraPath(), '*optimized*.sdf'))
+        sdfFiles = glob.glob(os.path.join(outPath, '*optimized*.sdf'))
         sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
         if not sdfFiles:
-            sdfFiles = glob.glob(os.path.join(self._getExtraPath(), '*.sdf'))
+            sdfFiles = glob.glob(os.path.join(outPath, '*.sdf'))
             sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
     else:
-        sdfFiles = glob.glob(os.path.join(self._getExtraPath(), '*.sdf'))
+        sdfFiles = glob.glob(os.path.join(outPath, '*.sdf'))
         sdfFiles = [f for f in sdfFiles if os.path.getsize(f) > 0]
 
     sdfFile = sdfFiles[0]
+    # create indiv files
+    splitDir = self._getPath()
+    os.makedirs(splitDir, exist_ok=True)
     args = [
-        '--pdb_file', outFile,
-        '--ligand_file', sdfFile,
-        '--multiple_ligands',
-        '--arch', 'pocket',  # NEEDS to be this value bc of the model
-        '--pocket_type', 'holo',  # NEEDS to be this value bc of the model
-        '--pocket_cutoff', self.pocketCutoff.get(),
-        '--coord_noise_scale', self.noiseScale.get(),
-        '--num_workers', (self.numberOfThreads.get()),
-        '--ckpt_path', modelPath,
-        '--save_dir', os.path.abspath(outPath),
-        '--max_pocket_size', self.maxPocketSize.get()
+        "-i", os.path.abspath(sdfFile),
+        "-of", "sdf",
+        "-od", os.path.abspath(splitDir),
+        "--overWrite"
     ]
-    if self.cutPocket.get(): args.append('--cut_pocket')
-    if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
-
-    args.extend(['--seed', self.seed.get()])
-
-    if self.useGpu.get():
-        args.append('--gpus')
-        args.append('1')
-
-    fullProgram = (
-        f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'flowr_root')}:$PYTHONPATH && "
-        f"python"
-    )
-
-    args_str = " ".join(map(str, args))
-
-    Plugin.runCondaCommand(
+    Plugin.runScript(
         self,
-        program=fullProgram,
-        args=f"{scriptPath} {args_str}",
-        condaDic=FLOWR_DIC,
-        cwd=Plugin.getVar(self._getExtraPath())
+        'rdkit_IO.py',
+        args,
+        env=RDKIT_DIC,
+        cwd=self._getExtraPath()
     )
+
+def _extractSdfProperties(sdf_path):
+    props = {}
+    current_key = None
+    with open(sdf_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            # Detect property key
+            if line.startswith(">") and "<" in line and ">" in line:
+                match = re.search(r"<(.+?)>", line)
+                if match:
+                    current_key = match.group(1).strip().lower()
+                continue
+            # Value line
+            if current_key and line and not line.startswith(">") and line != "$$$$":
+                try:
+                    props[current_key] = float(line)
+                except:
+                    props[current_key] = line
+                current_key = None
+    return props
 
 def getLigandIndex(self):
     for i, mol in enumerate(self.inputSetOfMols.get()):
