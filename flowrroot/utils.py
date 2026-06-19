@@ -99,7 +99,9 @@ def getLigandIndex(self):
 
 def _createArgs(self, outFile, outPath):
     ligIdx = getLigandIndex(self)
-    modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), 'checkpoints/flowr_root_v2.1.ckpt')
+    if self.model.get() == 0: model = 'flowr_root_v2.1.cpkt'
+    else: model = 'flowr_root_v2.2.cpkt'
+    modelPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']), f'checkpoints/{model}')
 
     args = [
         '--pdb_file', outFile,

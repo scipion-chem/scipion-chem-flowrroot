@@ -219,7 +219,10 @@ Use Cases
         form.addParam('referenceMol', params.StringParam,
                       label='Reference ligand: ',
                       help='Reference ligand')
-
+        form.addParam('model', params.EnumParam,
+                      choices=['flowr_root_v2.1.ckpt', 'flowr_root_v2.2.ckpt'], default=0,
+                      label="Model to use: ",
+                      help='Select which model to use.')
         form.addParam('affinity', params.BooleanParam, default=True,
                       label="Predict affinity: ",
                       help='Choose whether to predict affinity of the new molecules with input protein')
