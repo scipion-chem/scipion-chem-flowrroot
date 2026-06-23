@@ -220,7 +220,7 @@ Use Cases
                       label='Reference ligand: ',
                       help='Reference ligand')
         form.addParam('model', params.EnumParam,
-                      choices=['flowr_root_v2.1.ckpt', 'flowr_root_v2.2.ckpt'], default=0,
+                      choices=['flowr_root_v2.1.ckpt', 'flowr_root_v2.2.ckpt'], default=1,
                       label="Model to use: ",
                       help='Select which model to use.')
         form.addParam('affinity', params.BooleanParam, default=True,

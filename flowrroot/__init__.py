@@ -67,7 +67,7 @@ class Plugin(pwchemPlugin):
             f"conda run -n {FLOWR_DIC['name']}-{FLOWR_DIC['version']} pip install gdown && "
             f"conda run -n {FLOWR_DIC['name']}-{FLOWR_DIC['version']} gdown "
             f"'https://drive.google.com/uc?id=1eaazPXBL3Kpk5unXmQWFWtOfJKP1N9uj' "
-            f"-O {cls.getVar(FLOWR_DIC['home'])}/checkpoints/flowr_root_v2.1.ckpt"
+            f"-O {cls.getVar(FLOWR_DIC['home'])}/checkpoints/flowr_root_v2.1.ckpt &&"
             f"conda run -n {FLOWR_DIC['name']}-{FLOWR_DIC['version']} gdown "
             f"'https://drive.google.com/uc?id=1-H8-oTG_NucqBCfP02MRGeLSxL1HYrDL' "
             f"-O {cls.getVar(FLOWR_DIC['home'])}/checkpoints/flowr_root_v2.2.ckpt"
