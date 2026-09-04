@@ -346,7 +346,6 @@ Use Cases
                 args.append('--grow_size'), args.append(self.growSize.get())
 
         flowrPlugin.runFLOWRroot(
-            self,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
         )

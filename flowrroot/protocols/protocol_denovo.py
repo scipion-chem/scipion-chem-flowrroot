@@ -314,7 +314,6 @@ Use Cases
         args = utils._createArgs(self, outFile, outPath)
 
         flowrPlugin.runFLOWRroot(
-            self,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
         )

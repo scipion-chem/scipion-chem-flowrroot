@@ -318,7 +318,6 @@ class ProtInpainting(EMProtocol):
         args = args+(self.parse_atoms(self.atoms.get()))
 
         flowrPlugin.runFLOWRroot(
-            self,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
         )

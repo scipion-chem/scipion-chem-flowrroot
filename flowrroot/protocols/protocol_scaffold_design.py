@@ -229,7 +229,6 @@ class ProtScaffoldDesign(EMProtocol):
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
 
         flowrPlugin.runFLOWRroot(
-            self,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
         )
