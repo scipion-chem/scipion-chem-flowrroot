@@ -34,6 +34,7 @@ from pyworkflow.object import String, Float
 import shutil
 
 from pwchem import Plugin
+from flowrroot import Plugin as flowrPlugin
 from pwchem.constants import RDKIT_DIC
 from pwem.convert import cifToPdb
 from flowrroot.constants import FLOWR_DIC
@@ -227,7 +228,7 @@ class ProtScaffoldDesign(EMProtocol):
         if self.cutPocket.get(): args.append('--cut_pocket')
         if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
 
-        Plugin.runFLOWRroot(
+        flowrPlugin.runFLOWRroot(
             self,
             args,
             cwd=Plugin.getVar(self._getExtraPath())

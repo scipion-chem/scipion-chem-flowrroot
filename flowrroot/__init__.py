@@ -79,7 +79,6 @@ class Plugin(pwchemPlugin):
             default=default
         )
 
-    @classmethod
     def runFLOWRroot(cls, protocol, scriptPath, args, cwd=None):
         """Run a FLOWRroot script inside its conda environment."""
         flowrHome = cls.getVar(FLOWR_DIC['home'])

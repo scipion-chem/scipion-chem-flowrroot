@@ -34,6 +34,7 @@ from pyworkflow.object import String, Float
 import shutil
 
 from pwchem import Plugin
+from flowrroot import Plugin as flowrPlugin
 from pwchem.constants import RDKIT_DIC
 from pwem.convert import cifToPdb
 from flowrroot.constants import FLOWR_DIC
@@ -312,7 +313,7 @@ Use Cases
 
         args = utils._createArgs(self, outFile, outPath)
 
-        Plugin.runFLOWRroot(
+        flowrPlugin.runFLOWRroot(
             self,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
