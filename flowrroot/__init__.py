@@ -60,7 +60,12 @@ class Plugin(pwchemPlugin):
             f"{cls.getEnvActivationCommand(FLOWR_DIC)} && "
             "git clone --branch v1.0 --depth 1 https://github.com/jule-c/flowr_root.git "
         ).addCommand(
-            f"cd flowr_root && conda env create -f environment.yml -n {FLOWR_DIC['name']}-{FLOWR_DIC['version']}",
+            f"cd flowr_root && "
+            f"conda env create -f environment.yml -n "
+            f"{FLOWR_DIC['name']}-{FLOWR_DIC['version']}"
+        ).addCommand(
+            f"conda install -n {FLOWR_DIC['name']}-{FLOWR_DIC['version']} "
+            f"-c conda-forge catch2=3.13.0 -y",
             f"{FLOWR_DIC['name']}_installed"
         ).addCommand(
             f"mkdir -p {cls.getVar(FLOWR_DIC['home'])}/checkpoints && "

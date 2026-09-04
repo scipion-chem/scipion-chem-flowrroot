@@ -31,23 +31,6 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ../scipion/scipion3 installp -p . --devel
 
-      - name: Debug FLOWRroot environment
-        run: |
-          eval "$(~/miniconda3/condabin/conda shell.bash hook)"
-          conda activate flowrroot-1.0
-
-          echo "CONDA_PREFIX=$CONDA_PREFIX"
-
-          echo "Catch2 libraries:"
-          find "$CONDA_PREFIX" -name "libCatch2.so*" -print
-
-          echo "PyMOL _cmd dependencies:"
-          ldd "$CONDA_PREFIX/lib/python3.12/site-packages/pymol/_cmd*.so" | grep "not found" || true
-
-          echo "PyMOL import:"
-          export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-          python -c "from pymol import cmd; print('PyMOL OK')"
-      
       - name: Run tests
         working-directory: ${{ github.workspace }}/../
         env:
