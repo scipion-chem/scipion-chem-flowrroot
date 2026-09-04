@@ -302,10 +302,6 @@ Use Cases
         utils._createLigandFile(self)
 
     def runFlowrStep(self):
-        scriptPath = os.path.join(
-            Plugin.getVar(FLOWR_DIC['home']),
-            'flowr_root/flowr/gen/generate_from_pdb.py'
-        )
         outPath = self._getExtraPath('denovo')
 
         struct = self.inputAtomStruct.get()
@@ -318,13 +314,12 @@ Use Cases
                 self.inputAtomStruct.get().getFileName()
             )
 
-        args = utils._createArgs(self, outFile, outPath)
+        args = utils._createArgs(self, os.path.abspath(outFile), outPath)
 
         flowrPlugin.runFLOWRroot(
             self,
-            scriptPath,
             args,
-            cwd=Plugin.getVar(self._getExtraPath())
+            cwd=(self._getExtraPath())
         )
 
     def genIndivMoleculesStep(self):

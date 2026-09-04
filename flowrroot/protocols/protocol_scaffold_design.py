@@ -205,10 +205,6 @@ class ProtScaffoldDesign(EMProtocol):
         utils._createLigandFile(self)
 
     def runFlowrStep(self):
-        scriptPath = os.path.join(
-            Plugin.getVar(FLOWR_DIC['home']),
-            'flowr_root/flowr/gen/generate_from_pdb.py'
-        )
         outPath = self._getExtraPath('scaffold')
 
         struct = self.inputAtomStruct.get()
@@ -221,7 +217,7 @@ class ProtScaffoldDesign(EMProtocol):
                 self.inputAtomStruct.get().getFileName()
             )
 
-        args = utils._createArgs(self, outFile, outPath)
+        args = utils._createArgs(self, os.path.abspath(outFile), outPath)
 
         if self.filterCondSubstructure.get():
             args.append('--filter_cond_substructure')
@@ -239,9 +235,8 @@ class ProtScaffoldDesign(EMProtocol):
 
         flowrPlugin.runFLOWRroot(
             self,
-            scriptPath,
             args,
-            cwd=Plugin.getVar(self._getExtraPath())
+            cwd=(self._getExtraPath())
         )
 
     def genIndivMoleculesStep(self):

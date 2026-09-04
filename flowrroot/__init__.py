@@ -79,10 +79,16 @@ class Plugin(pwchemPlugin):
             default=default
         )
 
-    def runFLOWRroot(cls, protocol, scriptPath, args, cwd=None):
-        """Run a FLOWRroot script inside its conda environment."""
+    @classmethod
+    def runFLOWRroot(cls, protocol, args, cwd=None):
+        """Run the FLOWRroot generate_from_pdb script inside its conda environment."""
         flowrHome = cls.getVar(FLOWR_DIC['home'])
         flowrRoot = os.path.join(flowrHome, 'flowr_root')
+
+        scriptPath = os.path.join(
+            flowrRoot,
+            'flowr/gen/generate_from_pdb.py'
+        )
 
         fullProgram = (
             f"export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH && "
