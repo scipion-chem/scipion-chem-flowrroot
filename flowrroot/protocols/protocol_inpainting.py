@@ -316,18 +316,9 @@ class ProtInpainting(EMProtocol):
         args.append('--substructure')
         args = args+(self.parse_atoms(self.atoms.get()))
 
-        fullProgram = (
-            f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root')}:$PYTHONPATH && "
-            f"python"
-        )
-
-        args_str = " ".join(map(str, args))
-
-        Plugin.runCondaCommand(
+        Plugin.runFLOWRroot(
             self,
-            program=fullProgram,
-            args=f"{scriptPath} {args_str}",
-            condaDic=FLOWR_DIC,
+            args,
             cwd=Plugin.getVar(self._getExtraPath())
         )
 
