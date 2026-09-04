@@ -205,15 +205,21 @@ class ProtScaffoldDesign(EMProtocol):
         utils._createLigandFile(self)
 
     def runFlowrStep(self):
-        scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
+        scriptPath = os.path.join(
+            Plugin.getVar(FLOWR_DIC['home']),
+            'flowr_root/flowr/gen/generate_from_pdb.py'
+        )
         outPath = self._getExtraPath('scaffold')
 
         struct = self.inputAtomStruct.get()
         fileName = struct.getFileName()
         base = os.path.splitext(os.path.basename(fileName))[0]
+
         outFile = self._getExtraPath(base + '.pdb')
         if not os.path.exists(outFile):
-            outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
+            outFile = os.path.abspath(
+                self.inputAtomStruct.get().getFileName()
+            )
 
         args = utils._createArgs(self, outFile, outPath)
 
@@ -225,10 +231,15 @@ class ProtScaffoldDesign(EMProtocol):
         elif self.option.get() == 1:
             args.append('--scaffold_elaboration')
 
-        if self.cutPocket.get(): args.append('--cut_pocket')
-        if self.sampleMolSizes.get(): args.append('--sample_mol_sizes')
+        if self.cutPocket.get():
+            args.append('--cut_pocket')
+
+        if self.sampleMolSizes.get():
+            args.append('--sample_mol_sizes')
 
         flowrPlugin.runFLOWRroot(
+            self,
+            scriptPath,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
         )

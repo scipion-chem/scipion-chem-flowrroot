@@ -320,15 +320,21 @@ Use Cases
         utils._createLigandFile(self)
 
     def runFlowrStep(self):
-        scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
+        scriptPath = os.path.join(
+            Plugin.getVar(FLOWR_DIC['home']),
+            'flowr_root/flowr/gen/generate_from_pdb.py'
+        )
         outPath = self._getExtraPath('growth')
 
         struct = self.inputAtomStruct.get()
         fileName = struct.getFileName()
         base = os.path.splitext(os.path.basename(fileName))[0]
+
         outFile = self._getExtraPath(base + '.pdb')
         if not os.path.exists(outFile):
-            outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
+            outFile = os.path.abspath(
+                self.inputAtomStruct.get().getFileName()
+            )
 
         args = utils._createArgs(self, outFile, outPath)
 
@@ -337,15 +343,20 @@ Use Cases
 
         if self.anisotropic.get():
             args.append('--anisotropic_prior')
+
         if self.option.get() == 0:
             args.append('--core_growing')
-            args.append('--ring_system_indexing'), args.append(self.ringIndex.get())
+            args.append('--ring_system_indexing')
+            args.append(self.ringIndex.get())
         elif self.option.get() == 1:
             args.append('--fragment_growing')
-            if self.growSize.get()!= '':
-                args.append('--grow_size'), args.append(self.growSize.get())
+            if self.growSize.get() != '':
+                args.append('--grow_size')
+                args.append(self.growSize.get())
 
         flowrPlugin.runFLOWRroot(
+            self,
+            scriptPath,
             args,
             cwd=Plugin.getVar(self._getExtraPath())
         )
