@@ -96,12 +96,12 @@ class Plugin(pwchemPlugin):
             f"python"
         )
 
-        args_str = " ".join(map(str, args))
+        argsStr = " ".join(map(str, args))
 
         cls.runCondaCommand(
             protocol,
             program=fullProgram,
-            args=f"{scriptPath} {args_str}",
+            args=f"{scriptPath} {argsStr}",
             condaDic=FLOWR_DIC,
             cwd=cwd
         )
