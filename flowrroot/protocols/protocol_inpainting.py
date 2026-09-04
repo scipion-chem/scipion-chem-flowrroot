@@ -34,6 +34,7 @@ from pyworkflow.object import String, Float
 import shutil
 
 from pwchem import Plugin
+from flowrroot import Plugin as flowrPlugin
 from pwchem.constants import RDKIT_DIC
 from pwem.convert import cifToPdb
 from flowrroot.constants import FLOWR_DIC
@@ -297,38 +298,20 @@ class ProtInpainting(EMProtocol):
         utils._createLigandFile(self)
 
     def runFlowrStep(self):
-        scriptPath = os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root/flowr/gen/generate_from_pdb.py')
         outPath = self._getExtraPath('inpainting')
-
-        struct = self.inputAtomStruct.get()
-        fileName = struct.getFileName()
-        base = os.path.splitext(os.path.basename(fileName))[0]
-        outFile = self._getExtraPath(base + '.pdb')
-        if not os.path.exists(outFile):
-            outFile = os.path.abspath(self.inputAtomStruct.get().getFileName())
-
-        args = utils._createArgs(self, outFile, outPath)
+        args = utils._createFlowrArgs(self, outPath)
 
         if self.filterCondSubstructure.get():
             args.append('--filter_cond_substructure')
 
         args.append('--substructure_inpainting')
         args.append('--substructure')
-        args = args+(self.parse_atoms(self.atoms.get()))
+        args += self.parse_atoms(self.atoms.get())
 
-        fullProgram = (
-            f"export PYTHONPATH={os.path.join(Plugin.getVar(FLOWR_DIC['home']),'flowr_root')}:$PYTHONPATH && "
-            f"python"
-        )
-
-        args_str = " ".join(map(str, args))
-
-        Plugin.runCondaCommand(
+        flowrPlugin.runFLOWRroot(
             self,
-            program=fullProgram,
-            args=f"{scriptPath} {args_str}",
-            condaDic=FLOWR_DIC,
-            cwd=Plugin.getVar(self._getExtraPath())
+            args,
+            cwd=self._getExtraPath()
         )
 
     def genIndivMoleculesStep(self):

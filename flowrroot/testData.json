@@ -1,0 +1,17 @@
+{
+	"datasets": ["smallMolecules"],
+	"skippable": {
+		"gpu": [
+			"test_flowr.TestDenovo",
+			"test_flowr.TestGrowth",
+			"test_flowr.TestInpainting",
+			"test_flowr.TestScaffold"
+		],
+		"dependencies": [
+
+		],
+		"others": [
+
+		]
+	}
+}

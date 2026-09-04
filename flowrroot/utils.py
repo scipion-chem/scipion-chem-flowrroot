@@ -135,3 +135,17 @@ def _createArgs(self, outFile, outPath):
         args.append('1')
     return args
 
+def _createFlowrArgs(protocol, outputDir):
+    struct = protocol.inputAtomStruct.get()
+    fileName = struct.getFileName()
+    base = os.path.splitext(os.path.basename(fileName))[0]
+
+    outFile = protocol._getExtraPath(base + '.pdb')
+    if not os.path.exists(outFile):
+        outFile = os.path.abspath(fileName)
+
+    return _createArgs(
+        protocol,
+        os.path.abspath(outFile),
+        outputDir
+    )
