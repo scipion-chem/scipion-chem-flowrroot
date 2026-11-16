@@ -29,7 +29,7 @@ import unittest
 from pwchem.protocols import *
 from pwem.protocols import ProtImportPdb
 import pwem.protocols as emprot
-from flowrroot.protocols import ProtDenovoGeneration, ProtGrowth, ProtInpainting, ProtScaffoldDesign
+from flowrroot.protocols import ProtDenovoGeneration, ProtGrowth, ProtInpainting, ProtScaffoldDesign, ProtFlowrAffinity
 from pyworkflow.tests import BaseTest, setupTestProject, DataSet
 
 STRING_MOL = 'SmallMolecule (g1_9ktp_OGA-1_1 molecule)'
@@ -212,3 +212,22 @@ class TestScaffold(TestDenovo):
         mols = getattr(protScaffoldElab, 'outputSmallMolecules', None)
         self.assertIsNotNone(mols)
 
+class TestAffinity(TestDenovo):
+    @classmethod
+    def setUpClass(cls):
+        cls.dsLig = DataSet.getDataSet("smallMolecules")
+        setupTestProject(cls)
+        cls._runImportPDB()
+        cls._runExtractLigand()
+
+    def test(self):
+        # The extracted ligands are posed in the receptor, which is the protein file of their set
+        protAff = self.newProtocol(
+            ProtFlowrAffinity,
+            inputSmallMolecules=self.protExtLig.outputSmallMolecules
+        )
+        self.launchProtocol(protAff)
+        self._waitOutput(protAff, 'outputSmallMolecules', sleepTime=10)
+        mols = getattr(protAff, 'outputSmallMolecules', None)
+        self.assertIsNotNone(mols)
+        self.assertIsNotNone(mols.getFirstItem().FLOWR_pKi.get())

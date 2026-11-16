@@ -80,17 +80,17 @@ class Plugin(pwchemPlugin):
         )
 
     @classmethod
-    def runFLOWRroot(cls, protocol, args, cwd=None):
-        """Run the FLOWRroot generate_from_pdb script inside its conda environment."""
+    def runFLOWRroot(cls, protocol, args, cwd=None, script='flowr/gen/generate_from_pdb.py'):
+        """Run a FLOWRroot script (by default generate_from_pdb) inside its conda environment."""
         flowrHome = cls.getVar(FLOWR_DIC['home'])
         flowrRoot = os.path.join(flowrHome, 'flowr_root')
 
-        scriptPath = os.path.join(
-            flowrRoot,
-            'flowr/gen/generate_from_pdb.py'
-        )
+        scriptPath = os.path.join(flowrRoot, script)
 
         fullProgram = (
+            # Torch shares every tensor of the dataloader as a file descriptor, which goes over the 1024 open
+            # files Scipion is usually launched with ("Too many open files" / "Pin memory thread exited")
+            f'ulimit -n "$(ulimit -Hn)" 2>/dev/null; '
             f"export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH && "
             f"export PYTHONPATH={flowrRoot}:$PYTHONPATH && "
             f"python"
