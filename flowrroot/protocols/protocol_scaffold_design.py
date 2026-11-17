@@ -173,8 +173,8 @@ class ProtScaffoldDesign(EMProtocol):
 
         form.addSection(label='Input')
         form.addParam('option', params.EnumParam,
-                      choices=['Scaffold hopping', 'Scaffold elaboration'], default=0,
-                      label="Design option: ",
+                      choices=['Scaffold hopping', 'Scaffold elaboration'], display=params.EnumParam.DISPLAY_HLIST,
+                      default=0, label="Design option: ",
                       help='Scaffold hopping: preserves the functional groups from a reference ligand while generating a new molecular scaffold. This is useful for exploring novel chemotypes while maintaining key interactions. \n'
                            'Scaffold elaboration: preserves the core molecular scaffold from a reference ligand while generating new R-groups, decorations, and functional groups. This is useful for lead optimization where you want to keep the scaffold but explore different substituents.')
         ProtDenovoGeneration.mainParams(form)
@@ -235,13 +235,13 @@ class ProtScaffoldDesign(EMProtocol):
     def createOutputStep(self):
         sdfs = glob.glob(os.path.join(self._getPath(), '*.sdf'))
         outMols = SetOfSmallMolecules().create(outputPath=self._getPath())
-        outMols.setProteinFile(self.inputAtomStruct.get().getFileName())
+        outMols.setProteinFile(utils.getReceptorFile(self))
         for sdf in sdfs:
             molName = os.path.splitext(os.path.basename(sdf))[0]
             mol = SmallMolecule(smallMolFilename=sdf, molName=molName)
 
             if self.affinity.get():
-                props = utils._extractSdfProperties(sdf)
+                props = utils.getAffinities(self, sdf)
                 mol.pIC50 = Float()
                 mol.pKi = Float()
                 mol.pKd = Float()
@@ -266,6 +266,10 @@ class ProtScaffoldDesign(EMProtocol):
 
     def _validate(self):
         validations = []
+        molSet = self.inputSetOfMols.get()
+        if molSet is not None and not molSet.isDocked():
+            validations.append(f'{molSet} is not docked yet: the reference ligand has to be placed in the '
+                               f'receptor, which is also where the receptor itself is taken from.')
         return validations
 
     def _warnings(self):

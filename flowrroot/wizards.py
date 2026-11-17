@@ -42,6 +42,11 @@ SelectElementWizard().addTarget(protocol=ProtDenovoGeneration,
                                inputs=['inputSetOfMols'],
                                outputs=['referenceMol'])
 
+SelectElementWizard().addTarget(protocol=ProtDenovoGeneration,
+                               targets=['referenceROI'],
+                               inputs=['inputStructROIs'],
+                               outputs=['referenceROI'])
+
 SelectElementWizard().addTarget(protocol=ProtScaffoldDesign,
                                targets=['referenceMol'],
                                inputs=['inputSetOfMols'],

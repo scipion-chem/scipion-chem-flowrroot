@@ -124,11 +124,10 @@ class ProtInpainting(EMProtocol):
 
     Input
     -----
-    - inputAtomStruct:
-        Protein structure containing the target binding site.
-
     - inputSetOfMols:
-        SetOfSmallMolecules containing reference ligands.
+        SetOfSmallMolecules, docked, containing the reference ligands. The
+        receptor is the structure they were docked on, and is not asked for
+        separately.
 
     - referenceMol:
         Name of the ligand to be modified.
@@ -179,7 +178,8 @@ class ProtInpainting(EMProtocol):
         Higher values generally increase structural diversity.
 
     - sampleMolSizes:
-        Enables stochastic sampling of molecular sizes.
+        Varies by 10% the number of atoms generated for the inpainted
+        region, so that the regenerated parts are not all the same size.
 
     - batchCost:
         Internal generation batch-size parameter used by FLOWR.
@@ -320,13 +320,13 @@ class ProtInpainting(EMProtocol):
     def createOutputStep(self):
         sdfs = glob.glob(os.path.join(self._getPath(), '*.sdf'))
         outMols = SetOfSmallMolecules().create(outputPath=self._getPath())
-        outMols.setProteinFile(self.inputAtomStruct.get().getFileName())
+        outMols.setProteinFile(utils.getReceptorFile(self))
         for sdf in sdfs:
             molName = os.path.splitext(os.path.basename(sdf))[0]
             mol = SmallMolecule(smallMolFilename=sdf, molName=molName)
 
             if self.affinity.get():
-                props = utils._extractSdfProperties(sdf)
+                props = utils.getAffinities(self, sdf)
                 mol.pIC50 = Float()
                 mol.pKi = Float()
                 mol.pKd = Float()
@@ -351,6 +351,10 @@ class ProtInpainting(EMProtocol):
 
     def _validate(self):
         validations = []
+        molSet = self.inputSetOfMols.get()
+        if molSet is not None and not molSet.isDocked():
+            validations.append(f'{molSet} is not docked yet: the reference ligand has to be placed in the '
+                               f'receptor, which is also where the receptor itself is taken from.')
         return validations
 
     def _warnings(self):

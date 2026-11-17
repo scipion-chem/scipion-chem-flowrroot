@@ -28,6 +28,7 @@ import unittest
 
 from pwchem.protocols import *
 from pwem.protocols import ProtImportPdb
+from pwchem.protocols import ProtDefineStructROIs
 import pwem.protocols as emprot
 from flowrroot.protocols import ProtDenovoGeneration, ProtGrowth, ProtInpainting, ProtScaffoldDesign, ProtFlowrAffinity
 from pyworkflow.tests import BaseTest, setupTestProject, DataSet
@@ -44,6 +45,7 @@ class TestDenovo(BaseTest):
         cls._runImportSmallMols()
         cls._runExtractLigand()
         cls._runJoinSets()
+        cls._runDefineROI()
 
     @classmethod
     def _runImportPDB(cls):
@@ -82,10 +84,20 @@ class TestDenovo(BaseTest):
         cls.unionProt = unionProt
 
 
+    @classmethod
+    def _runDefineROI(cls):
+        protDef = cls.newProtocol(
+            ProtDefineStructROIs,
+            inROIs='1) Ligand: {"molName": "OGA", "remove": "True"}')
+        protDef.inputAtomStruct.set(cls.protImportPDB)
+        protDef.inputAtomStruct.setExtended('outputPdb')
+        cls.proj.launchProtocol(protDef, wait=True)
+        cls.protDef = protDef
+
+
     def _runDenovo(cls):
         protDenovo = cls.newProtocol(
             ProtDenovoGeneration,
-            inputAtomStruct=cls.protImportPDB.outputPdb,
             inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL
         )
@@ -93,11 +105,32 @@ class TestDenovo(BaseTest):
         return protDenovo
 
 
+    def _runDenovoROI(cls):
+        rois = cls.protDef.outputStructROIs
+        protDenovo = cls.newProtocol(
+            ProtDenovoGeneration,
+            inputType=1,
+            inputStructROIs=rois,
+            referenceROI=str(rois.getFirstItem()),
+            molSize=20,
+            nMolecules=2
+        )
+        cls.launchProtocol(protDenovo)
+        return protDenovo
+
+
     def test(self):
+        # The pocket can be defined either with a docked molecule or with a structural ROI
         denovo = self._runDenovo()
         self._waitOutput(denovo, 'outputSmallMolecules', sleepTime=10)
         mols = getattr(denovo, 'outputSmallMolecules', None)
         self.assertIsNotNone(mols)
+
+        denovoROI = self._runDenovoROI()
+        self._waitOutput(denovoROI, 'outputSmallMolecules', sleepTime=10)
+        molsROI = getattr(denovoROI, 'outputSmallMolecules', None)
+        self.assertIsNotNone(molsROI)
+        self.assertIsNotNone(molsROI.getProteinFile())
 
 class TestGrowth(TestDenovo):
     @classmethod
@@ -112,7 +145,6 @@ class TestGrowth(TestDenovo):
     def _runGrowthCore(cls):
         protGrowthCore = cls.newProtocol(
             ProtGrowth,
-            inputAtomStruct=cls.protImportPDB.outputPdb,
             inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL,
             option=0
@@ -123,7 +155,6 @@ class TestGrowth(TestDenovo):
     def _runGrowthFrag(cls):
         protGrowthFrag = cls.newProtocol(
             ProtGrowth,
-            inputAtomStruct=cls.protImportPDB.outputPdb,
             inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL,
             option=1
@@ -155,7 +186,6 @@ class TestInpainting(TestDenovo):
     def _runInpaint(cls):
         protInpaint = cls.newProtocol(
             ProtInpainting,
-            inputAtomStruct=cls.protImportPDB.outputPdb,
             inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL,
             atoms='1,3,5'
@@ -182,7 +212,6 @@ class TestScaffold(TestDenovo):
     def _runScaffoldHopping(cls):
         protScaffold = cls.newProtocol(
             ProtScaffoldDesign,
-            inputAtomStruct=cls.protImportPDB.outputPdb,
             inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL,
             option=0
@@ -193,7 +222,6 @@ class TestScaffold(TestDenovo):
     def _runScaffoldElab(cls):
         protScaffold = cls.newProtocol(
             ProtScaffoldDesign,
-            inputAtomStruct=cls.protImportPDB.outputPdb,
             inputSetOfMols=cls.unionProt.outputSet,
             referenceMol=STRING_MOL,
             option=1

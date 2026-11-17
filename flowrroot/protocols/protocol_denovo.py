@@ -114,14 +114,34 @@ Workflow
 
 Input
 -----
-- inputAtomStruct:
-    Protein structure containing the target binding site.
+The receptor is never asked for: it is the structure the input object was
+obtained on, taken from the object itself.
+
+- inputType:
+    Whether the binding pocket is defined by a reference ligand or by a
+    structural ROI.
+
+With a reference ligand:
 
 - inputSetOfMols:
-    SetOfSmallMolecules containing reference ligands.
+    SetOfSmallMolecules, docked, containing the reference ligands.
 
 - referenceMol:
-    Name of the ligand used to define the binding pocket.
+    Name of the ligand used to define the binding pocket. It also sets the
+    size of the generated molecules.
+
+With a structural ROI:
+
+- inputStructROIs:
+    SetOfStructROIs from a pocket search (fpocket, P2Rank, AutoSite...).
+
+- referenceROI:
+    Name of the ROI to generate molecules in.
+
+- molSize:
+    Number of heavy atoms of the generated molecules, which a ROI, unlike a
+    reference ligand, does not imply. With sampleMolSizes enabled each
+    molecule varies by 10% around it (25 gives molecules of 22-27 atoms).
 
 Parameters
 ----------
@@ -151,8 +171,9 @@ Generation Control
     Higher values generally increase molecular diversity.
 
 - sampleMolSizes:
-    Enables stochastic sampling of molecular sizes, allowing
-    generation of ligands with different numbers of atoms.
+    Varies the size of each generated molecule by 10% around the reference
+    size (the reference ligand's number of heavy atoms, or molSize when
+    generating in a ROI). Disabled, every molecule has exactly that size.
 
 - batchCost:
     Internal generation batch size parameter used by FLOWR.
@@ -208,18 +229,19 @@ Use Cases
     _label = 'De Novo ligand generation'
 
     @classmethod
-    def mainParams(self, form):
-        form.addParam('inputAtomStruct', params.PointerParam,
-                      pointerClass='AtomStruct',
-                      label="Input structure: ",
-                      help='Select the AtomStruct object')
+    def mainParams(self, form, condition=None):
+        '''Inputs shared by every generation protocol. The receptor is not asked for: it is the structure the
+        input object was obtained on. condition hides the reference ligand where it is only one of the ways of
+        defining the pocket (see ProtDenovoGeneration)'''
+        cond = {'condition': condition} if condition else {}
         form.addParam('inputSetOfMols', params.PointerParam,
                       pointerClass='SetOfSmallMolecules',
-                      label="Input reference ligands set: ",
-                      help='Select the AtomStruct object')
+                      label="Input reference ligands set: ", **cond,
+                      help='Set of docked small molecules. The pocket is the region around the reference '
+                           'ligand, and the receptor is the structure the set was docked on.')
         form.addParam('referenceMol', params.StringParam,
-                      label='Reference ligand: ',
-                      help='Reference ligand')
+                      label='Reference ligand: ', **cond,
+                      help='Ligand of the set defining the pocket to generate in.')
         form.addParam('model', params.EnumParam,
                       choices=['flowr_root_v2.1.ckpt', 'flowr_root_v2.2.ckpt'], default=1,
                       label="Model to use: ",
@@ -230,12 +252,12 @@ Use Cases
 
     @classmethod
     def parameters(self, group):
-        group.addParam('pocketCutoff', params.FloatParam, default=6.0,
-                       label='Pocket cutoff: ',
-                       help="Number of step size. Its related to the temperature at which the diffusion process samples the distribution.")
         group.addParam('cutPocket', params.BooleanParam, default=True,
                        label="Cut pocket: ",
                        help='Choose whether the program sees whole protein or only the pocket.')
+        group.addParam('pocketCutoff', params.FloatParam, default=6.0,
+                       label='Pocket cutoff: ', condition='cutPocket',
+                       help="Distance (A) around the reference ligand defining the pocket given to the model.")
         group.addParam('nMolecules', params.IntParam, default=5,
                        label='Number of generated molecules: ', help="Number of generated molecules.")
 
@@ -258,10 +280,12 @@ Use Cases
                        help="How much noise added to generation to increase diversity.")
         group.addParam('sampleMolSizes', params.BooleanParam, default=True,
                        label="Sample molecule sizes: ", expertLevel=params.LEVEL_ADVANCED,
-                       help="Enables stochastic sampling of molecular sizes, allowing the model to generate ligands with varying number of atoms based on learned size distribution.")
+                       help="Vary the size of each generated molecule by 10% around the reference size (the "
+                            "reference ligand's number of heavy atoms, or 'Molecule size' when generating in a ROI). "
+                            "Disable it to make every molecule exactly that size.")
         group.addParam('batchCost', params.IntParam, default=20,
                        label='Batch cost: ', expertLevel=params.LEVEL_ADVANCED,
-                       help="How much noise added to generation to increase diversity.")
+                       help="How many molecules FLOWR samples at once. Lower it if the GPU runs out of memory.")
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -278,7 +302,28 @@ Use Cases
                        help="Comma-separated GPU devices that can be used.")
 
         form.addSection(label='Input')
-        self.mainParams(form)
+        form.addParam('inputType', params.EnumParam, display=params.EnumParam.DISPLAY_HLIST,
+                      choices=['Reference ligand', 'Structural ROI'], default=0,
+                      label="Define the pocket with: ",
+                      help='Reference ligand: the pocket is the region around a docked molecule, and the size '
+                           'of the generated molecules follows that of the reference.\n'
+                           'Structural ROI: the pocket is a region of interest found by a pocket search '
+                           '(fpocket, P2Rank, AutoSite...), and the size of the generated molecules is chosen '
+                           'below.')
+        form.addParam('inputStructROIs', params.PointerParam,
+                      pointerClass='SetOfStructROIs', condition='inputType==1',
+                      label="Input pockets: ",
+                      help='Set of structural ROIs. The receptor is the structure they were found on.')
+        form.addParam('referenceROI', params.StringParam, condition='inputType==1',
+                      label='Pocket: ',
+                      help='ROI of the set to generate molecules in.')
+        form.addParam('molSize', params.IntParam, default=25, condition='inputType==1',
+                      label='Molecule size: ',
+                      help='Number of heavy atoms of the generated molecules. With a reference ligand this is '
+                           'the size of that ligand, but a ROI defines no molecule, so it is asked for here. '
+                           'With "Sample molecule sizes" enabled each molecule varies by 10% around it '
+                           '(25 gives molecules of 22-27 atoms).')
+        self.mainParams(form, condition='inputType==0')
 
         group = form.addGroup('Parameters')
         self.parameters(group)
@@ -299,7 +344,10 @@ Use Cases
         return utils._convertFiles(self)
 
     def createLigandFileStep(self):
-        utils._createLigandFile(self)
+        if utils.usesROI(self):
+            utils._createROILigandFile(self)
+        else:
+            utils._createLigandFile(self)
 
     def runFlowrStep(self):
         outPath = self._getExtraPath('denovo')
@@ -317,13 +365,13 @@ Use Cases
     def createOutputStep(self):
         sdfs = glob.glob(os.path.join(self._getPath(), '*.sdf'))
         outMols = SetOfSmallMolecules().create(outputPath=self._getPath())
-        outMols.setProteinFile(self.inputAtomStruct.get().getFileName())
+        outMols.setProteinFile(utils.getReceptorFile(self))
         for sdf in sdfs:
             molName = os.path.splitext(os.path.basename(sdf))[0]
             mol = SmallMolecule(smallMolFilename=sdf, molName=molName)
 
             if self.affinity.get():
-                props = utils._extractSdfProperties(sdf)
+                props = utils.getAffinities(self, sdf)
                 mol.pIC50 = Float()
                 mol.pKi = Float()
                 mol.pKd = Float()
@@ -348,6 +396,16 @@ Use Cases
 
     def _validate(self):
         validations = []
+        if utils.usesROI(self):
+            roi = utils.getSelectedROI(self)
+            if roi is not None and self.molSize.get() > roi.getNumberOfPoints():
+                validations.append(f'The pocket has only {roi.getNumberOfPoints()} points, which is fewer than '
+                                   f'the {self.molSize.get()} atoms asked for: pick a smaller molecule size.')
+        else:
+            molSet = self.inputSetOfMols.get()
+            if molSet is not None and not molSet.isDocked():
+                validations.append(f'{molSet} is not docked yet: the reference ligand has to be placed in the '
+                                   f'receptor, which is also where the receptor itself is taken from.')
         return validations
 
     def _warnings(self):
